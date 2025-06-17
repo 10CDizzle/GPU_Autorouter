@@ -30,7 +30,8 @@
                 "ms-vscode.cpptools-extension-pack",// Useful C++ extensions
                 "twxs.cmake",                       // Alternative CMake language support
                 "cschlosser.doxdocgen",             // C++ documentation generator
-                "nvidia.nsight-vscode-edition"      // NVIDIA Nsight for CUDA debugging/profiling
+                "nvidia.nsight-vscode-edition",     // NVIDIA Nsight for CUDA debugging/profiling
+                "Google.gemini-code-assist"         // Gemini Code Assist
             ],
             "settings": {
                 "terminal.integrated.defaultProfile.linux": "bash",

@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Qt6 development libraries
     qt6-base-dev \
     qt6-declarative-dev \
-    qt6tools-dev \
+    qt6-tools-dev \
     libqt6svg6-dev \
     # Dependencies for running Qt GUI applications via X11 forwarding
     libgl1-mesa-dev \
