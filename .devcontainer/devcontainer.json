@@ -1,0 +1,49 @@
+{
+    "name": "CUDA C++ PCB Autorouter",
+    "build": {
+        "dockerfile": "Dockerfile",
+        // Sets the build context to the project root folder (parent of .devcontainer)
+        // This allows the Dockerfile to COPY files from your project if needed.
+        "context": ".."
+    },
+
+    // Mount the project folder to /workspaces/your_project_name in the container
+    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind,consistency=cached",
+
+    // Arguments for docker run
+    "runArgs": [
+        "--gpus", "all", // Enable GPU access
+        // For X11 forwarding to display GUI apps from the container on your host:
+        "--env=DISPLAY=${env:DISPLAY}",
+        "--volume=/tmp/.X11-unix:/tmp/.X11-unix:rw"
+        // You might need to run 'xhost +local:docker' on your host machine
+        // to allow the container to connect to your X server.
+    ],
+
+    // VS Code extensions to install in the container
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools",               // C/C++ language support
+                "ms-vscode.cmake-tools",            // CMake integration
+                "ms-vscode.cpptools-extension-pack",// Useful C++ extensions
+                "twxs.cmake",                       // Alternative CMake language support
+                "cschlosser.doxdocgen",             // C++ documentation generator
+                "nvidia.nsight-vscode-edition"      // NVIDIA Nsight for CUDA debugging/profiling
+            ],
+            "settings": {
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "C_Cpp.default.cppStandard": "c++17", // Or your preferred C++ standard
+                "C_Cpp.default.compilerPath": "/usr/bin/g++",
+                "cmake.configureOnOpen": true
+            }
+        }
+    },
+
+    // Use 'postCreateCommand' to run commands after the container is created.
+    // Example: "postCreateCommand": "sudo apt-get update && sudo apt-get install -y <your-package>",
+
+    // Connect as the non-root user defined in the Dockerfile
+    "remoteUser": "vscode"
+}
