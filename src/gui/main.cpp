@@ -17,6 +17,11 @@ class MyFrame : public wxFrame
 {
 public:
     MyFrame();
+
+private:
+    // Event handlers
+    void OnExit(wxCommandEvent& event);
+    void OnAbout(wxCommandEvent& event);
 };
 
 // The macro that creates the application's main() function.
@@ -34,20 +39,53 @@ bool MyApp::OnInit()
 MyFrame::MyFrame()
     : wxFrame(NULL, wxID_ANY, "PCB Autorouter GUI Test")
 {
-    // Set a minimum size for the window
-    SetMinSize(wxSize(400, 300));
+    // --- 1. Create the Menubar ---
+    wxMenu *menuFile = new wxMenu;
+    menuFile->Append(wxID_EXIT); // Use a standard ID for the Exit item
 
-    // Create a panel to hold the controls
-    wxPanel* panel = new wxPanel(this, wxID_ANY);
+    wxMenu *menuHelp = new wxMenu;
+    menuHelp->Append(wxID_ABOUT);
 
-    // Create the text label
-    wxStaticText* label = new wxStaticText(panel, wxID_ANY, "Hello, CUDA PCB Autorouter!");
+    wxMenuBar *menuBar = new wxMenuBar;
+    menuBar->Append(menuFile, "&File");
+    menuBar->Append(menuHelp, "&Help");
 
-    // Use a sizer to manage the layout and center the label
+    SetMenuBar(menuBar);
+
+    // --- 2. Create the Status Bar ---
+    CreateStatusBar();
+    SetStatusText("Welcome to the GPU PCB Autorouter!");
+
+    // --- 3. Create the Central Drawing Area ---
+    // This panel will eventually be a custom widget for displaying the PCB.
+    // We give it a grey background to make it visible.
+    wxPanel* drawingCanvas = new wxPanel(this, wxID_ANY);
+    drawingCanvas->SetBackgroundColour(*wxLIGHT_GREY);
+
+    // --- 4. Use a Sizer to Arrange Components ---
+    // The sizer will manage the layout, allowing the drawingCanvas to expand
+    // and fill the available space in the frame.
     wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
-    sizer->Add(label, 1, wxEXPAND | wxALL, 20); // Add with border and make it expand
-    panel->SetSizerAndFit(sizer);
+    sizer->Add(drawingCanvas, 1, wxEXPAND); // The '1' makes it the expanding "stretchable" part
+
+    this->SetSizerAndFit(sizer);
+    this->SetMinSize(wxSize(600, 480)); // Set a more reasonable default size
 
     // Center the frame on the screen
     Centre();
+
+    // --- 5. Connect Events to Handlers ---
+    Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
+    Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
+}
+
+void MyFrame::OnAbout(wxCommandEvent& event)
+{
+    wxMessageBox("This is a GPU-accelerated PCB Autorouter application.",
+                 "About PCB Autorouter", wxOK | wxICON_INFORMATION);
+}
+
+void MyFrame::OnExit(wxCommandEvent& event)
+{
+    Close(true);
 }
