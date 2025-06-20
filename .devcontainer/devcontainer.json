@@ -16,7 +16,8 @@
         "--gpus", "all", // Enable GPU access
         // For X11 forwarding to display GUI apps from the container on your host:
         "--env=DISPLAY=${env:DISPLAY}",
-        "--volume=/tmp/.X11-unix:/tmp/.X11-unix:rw"
+        "--volume=/tmp/.X11-unix:/tmp/.X11-unix:rw",
+        "--env=QT_QPA_PLATFORM=xcb" // Force XCB platform plugin
         // You might need to run 'xhost +local:docker' on your host machine
         // to allow the container to connect to your X server.
     ],

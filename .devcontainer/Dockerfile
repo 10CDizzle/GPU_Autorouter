@@ -9,6 +9,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     g++ \
+    g++-mingw-w64-x86-64 \
+    binutils-mingw-w64-x86-64 \
+    mingw-w64-x86-64-dev \
+    g++-multilib \
+    gcc-multilib \
     cmake \
     git \
     ninja-build \

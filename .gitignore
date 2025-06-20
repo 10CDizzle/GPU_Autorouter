@@ -1,1 +1,24 @@
-build/*
+# CMake / Build artifacts
+/build*/
+*.VC.db
+*.VC.opendb
+
+# Visual Studio
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# User-specific files
+*.user
+
+# Ignore potential build artifacts within the wxWidgets source tree
+/lib/wxWidgets-3.3.0/*
+
+# Executables and libraries
+*.exe
+*.dll
+*.lib
+*.obj
+CMakePresets.json

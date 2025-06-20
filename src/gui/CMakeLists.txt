@@ -9,4 +9,7 @@ add_executable(PCBAutorouterApp
     main.cpp
 )
 
-target_link_libraries(PCBAutorouterApp PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui)
+set_target_properties(PCBAutorouterApp PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+
+# Link against the modern wxWidgets targets. This automatically handles include paths.
+target_link_libraries(PCBAutorouterApp PRIVATE wx::core wx::base)
