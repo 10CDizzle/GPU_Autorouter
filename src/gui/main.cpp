@@ -63,8 +63,8 @@ MyFrame::MyFrame()
     SetMenuBar(menuBar);
 
     // --- 2. Create the Status Bar ---
-    CreateStatusBar();
-    SetStatusText("Welcome to the GPU PCB Autorouter!");
+    CreateStatusBar(2); // Create a status bar with 2 fields
+    SetStatusText("Welcome to the GPU PCB Autorouter!", 0);
 
     // --- 3. Create the Central Drawing Area ---
     // This panel will eventually be a custom widget for displaying the PCB.

@@ -1,21 +1,28 @@
 #include "PcbCanvas.h"
+#include <wx/dcbuffer.h> // For wxBufferedPaintDC
 
 PcbCanvas::PcbCanvas(wxWindow* parent)
     : wxScrolled<wxPanel>(parent, wxID_ANY)
 {
-    SetBackgroundStyle(wxBG_STYLE_PAINT); // Use custom paint handler to reduce flicker
+    SetBackgroundStyle(wxBG_STYLE_PAINT); // Use custom paint handler to reduce flicker.
     SetBackgroundColour(*wxLIGHT_GREY);
+
+    m_scale = 1.0;
 
     // Set up scrolling. The virtual size is the total area we can scroll over.
     // We'll update this when a PCB is loaded. For now, a large default.
     SetVirtualSize(2000, 2000);
-    SetScrollRate(10, 10); // 10 pixels per scroll unit
+    SetScrollRate(1, 1); // 1 pixel per scroll unit for easier calculations.
 
     // Bind events to their handlers
     Bind(wxEVT_PAINT, &PcbCanvas::OnPaint, this);
     Bind(wxEVT_LEFT_DOWN, &PcbCanvas::OnMouseDown, this);
     Bind(wxEVT_LEFT_UP, &PcbCanvas::OnMouseUp, this);
     Bind(wxEVT_MOTION, &PcbCanvas::OnMouseMove, this);
+    Bind(wxEVT_MOUSEWHEEL, &PcbCanvas::OnMouseWheel, this);
+    Bind(wxEVT_KEY_DOWN, &PcbCanvas::OnKeyDown, this);
+    Bind(wxEVT_ENTER_WINDOW, &PcbCanvas::OnEnterWindow, this);
+    Bind(wxEVT_LEAVE_WINDOW, &PcbCanvas::OnLeaveWindow, this);
 }
 
 void PcbCanvas::LoadKicadPcb(const wxString& path)
@@ -24,7 +31,11 @@ void PcbCanvas::LoadKicadPcb(const wxString& path)
     // In a real implementation, you would parse the file, populate your
     // data structures, determine the board's dimensions, and then
     // update the virtual size with SetVirtualSize().
-    GetParent()->SetStatusText("Loaded KiCad file: " + path);
+    wxFrame* parentFrame = wxDynamicCast(GetParent(), wxFrame);
+    if (parentFrame)
+    {
+        parentFrame->SetStatusText("Loaded KiCad file: " + path);
+    }
 
     Refresh(); // Trigger a repaint to show the new data
 }
@@ -32,14 +43,18 @@ void PcbCanvas::LoadKicadPcb(const wxString& path)
 void PcbCanvas::LoadSesFile(const wxString& path)
 {
     // Placeholder for actual SES file parsing logic.
-    GetParent()->SetStatusText("Loaded SES file: " + path);
+    wxFrame* parentFrame = wxDynamicCast(GetParent(), wxFrame);
+    if (parentFrame)
+    {
+        parentFrame->SetStatusText("Loaded SES file: " + path);
+    }
     Refresh();
 }
 
 void PcbCanvas::OnPaint(wxPaintEvent& event)
 {
-    // Use a wxPaintDC to ensure drawing only happens in the update region.
-    wxPaintDC dc(this);
+    // Use a buffered DC to reduce flicker, especially on Windows.
+    wxBufferedPaintDC dc(this);
     OnDraw(dc);
 }
 
@@ -48,6 +63,9 @@ void PcbCanvas::OnDraw(wxDC& dc)
     // This is our main drawing method.
     // It's vital to prepare the DC for the current scroll position.
     DoPrepareDC(dc);
+
+    // Apply the zoom scale to the device context.
+    dc.SetUserScale(m_scale, m_scale);
 
     // For now, let's just draw a simple grid and some text.
     // In the future, this is where you will iterate through your
@@ -65,6 +83,7 @@ void PcbCanvas::OnDraw(wxDC& dc)
 
 void PcbCanvas::OnMouseDown(wxMouseEvent& event)
 {
+    SetFocus(); // Capture keyboard focus on click.
     m_panStartPos = event.GetPosition();
     CaptureMouse();
 }
@@ -76,8 +95,79 @@ void PcbCanvas::OnMouseUp(wxMouseEvent& event)
 
 void PcbCanvas::OnMouseMove(wxMouseEvent& event)
 {
+    // Update logical mouse position for status bar
+    m_mouseLogicalPos = CalcUnscrolledPosition(event.GetPosition());
+
+    // Panning logic
     if (event.Dragging() && event.LeftIsDown()) {
         wxPoint delta = event.GetPosition() - m_panStartPos;
         Scroll(GetViewStart().x - delta.x, GetViewStart().y - delta.y);
     }
+
+    // Update status bar with coordinates
+    wxFrame* parentFrame = wxDynamicCast(GetParent(), wxFrame);
+    if (parentFrame)
+    {
+        wxString coords;
+        coords.Printf("X: %d, Y: %d | Zoom: %.2f%%", m_mouseLogicalPos.x, m_mouseLogicalPos.y, m_scale * 100);
+        parentFrame->SetStatusText(coords, 1); // Set text for the second field
+    }
+}
+
+void PcbCanvas::OnMouseWheel(wxMouseEvent& event)
+{
+    double zoomFactor = 1.1;
+    wxPoint mousePos = event.GetPosition();
+
+    // The logical position on the virtual canvas that is under the mouse
+    wxPoint logicalPos = CalcUnscrolledPosition(mousePos);
+    wxPoint viewStart = GetViewStart();
+
+    double oldScale = m_scale;
+
+    if (event.GetWheelRotation() > 0)
+    {
+        m_scale *= zoomFactor;
+    }
+    else
+    {
+        m_scale /= zoomFactor;
+    }
+
+    // Calculate the new view start to keep the point under the mouse stationary
+    wxPoint newViewStart;
+    newViewStart.x = logicalPos.x + (viewStart.x - logicalPos.x) * (oldScale / m_scale);
+    newViewStart.y = logicalPos.y + (viewStart.y - logicalPos.y) * (oldScale / m_scale);
+
+    Scroll(newViewStart);
+    Refresh(false); // Redraw the canvas with the new scale
+}
+
+void PcbCanvas::OnKeyDown(wxKeyEvent& event)
+{
+    int step = 10; // pixels to scroll
+    wxPoint pt = GetViewStart();
+
+    switch (event.GetKeyCode())
+    {
+        case WXK_LEFT:  pt.x -= step; break;
+        case WXK_RIGHT: pt.x += step; break;
+        case WXK_UP:    pt.y -= step; break;
+        case WXK_DOWN:  pt.y += step; break;
+        default:
+            event.Skip(); // Allow other handlers to process the event
+            return;
+    }
+
+    Scroll(pt);
+}
+
+void PcbCanvas::OnEnterWindow(wxMouseEvent& event)
+{
+    SetCursor(wxCursor(wxCURSOR_CROSS));
+}
+
+void PcbCanvas::OnLeaveWindow(wxMouseEvent& event)
+{
+    SetCursor(wxNullCursor);
 }
