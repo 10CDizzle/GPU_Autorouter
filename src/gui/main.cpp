@@ -24,9 +24,16 @@ private:
     // A pointer to our custom drawing canvas
     PcbCanvas* m_canvas;
 
+    // Path for the current session file
+    wxString m_sessionFilePath;
+    wxMenuItem* m_saveMenuItem;
+    wxMenuItem* m_saveAsMenuItem;
+
     // Event handlers
     void OnOpenKicad(wxCommandEvent& event);
     void OnOpenSes(wxCommandEvent& event);
+    void OnSave(wxCommandEvent& event);
+    void OnSaveAs(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
 };
@@ -51,6 +58,9 @@ MyFrame::MyFrame()
     menuFile->Append(wxID_OPEN, "&Open KiCad PCB...\tCtrl-O");
     menuFile->Append(wxID_ADD, "Open &SES File..."); // Using a different ID for a separate handler
     menuFile->AppendSeparator();
+    m_saveMenuItem = menuFile->Append(wxID_SAVE, "&Save\tCtrl-S");
+    m_saveAsMenuItem = menuFile->Append(wxID_SAVEAS, "Save &As...");
+    menuFile->AppendSeparator();
     menuFile->Append(wxID_EXIT); // Use a standard ID for the Exit item
 
     wxMenu *menuHelp = new wxMenu;
@@ -61,6 +71,9 @@ MyFrame::MyFrame()
     menuBar->Append(menuHelp, "&Help");
 
     SetMenuBar(menuBar);
+
+    m_saveMenuItem->Enable(false);
+    m_saveAsMenuItem->Enable(false);
 
     // --- 2. Create the Status Bar ---
     CreateStatusBar(2); // Create a status bar with 2 fields
@@ -85,6 +98,8 @@ MyFrame::MyFrame()
     // --- 5. Connect Events to Handlers ---
     Bind(wxEVT_MENU, &MyFrame::OnOpenKicad, this, wxID_OPEN);
     Bind(wxEVT_MENU, &MyFrame::OnOpenSes, this, wxID_ADD);
+    Bind(wxEVT_MENU, &MyFrame::OnSave, this, wxID_SAVE);
+    Bind(wxEVT_MENU, &MyFrame::OnSaveAs, this, wxID_SAVEAS);
     Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
     Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
 }
@@ -98,7 +113,14 @@ void MyFrame::OnOpenKicad(wxCommandEvent& event)
     if (openFileDialog.ShowModal() == wxID_CANCEL)
         return; // The user cancelled
 
-    m_canvas->LoadKicadPcb(openFileDialog.GetPath());
+    wxString designPath = openFileDialog.GetPath();
+    m_canvas->LoadKicadPcb(designPath);
+
+    // A new design is loaded, so any previous session file path is invalid
+    m_sessionFilePath.clear();
+    m_saveMenuItem->Enable(true);
+    m_saveAsMenuItem->Enable(true);
+    SetTitle(wxString::Format("PCB Autorouter - %s", designPath));
 }
 
 void MyFrame::OnOpenSes(wxCommandEvent& event)
@@ -110,7 +132,41 @@ void MyFrame::OnOpenSes(wxCommandEvent& event)
     if (openFileDialog.ShowModal() == wxID_CANCEL)
         return;
 
-    m_canvas->LoadSesFile(openFileDialog.GetPath());
+    wxString designPath = openFileDialog.GetPath();
+    m_canvas->LoadSesFile(designPath);
+
+    // A new design is loaded, so any previous session file path is invalid
+    m_sessionFilePath.clear();
+    m_saveMenuItem->Enable(true);
+    m_saveAsMenuItem->Enable(true);
+    SetTitle(wxString::Format("PCB Autorouter - %s", designPath));
+}
+
+void MyFrame::OnSave(wxCommandEvent& event)
+{
+    if (m_sessionFilePath.IsEmpty())
+    {
+        // If no path is set, behave like "Save As..."
+        OnSaveAs(event);
+    }
+    else
+    {
+        m_canvas->SaveFile(m_sessionFilePath);
+    }
+}
+
+void MyFrame::OnSaveAs(wxCommandEvent& event)
+{
+    wxFileDialog saveFileDialog(this, "Save routing session file", "", "",
+                               "PCB Route files (*.pcbroute)|*.pcbroute",
+                               wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+
+    if (saveFileDialog.ShowModal() == wxID_CANCEL)
+        return;
+
+    m_sessionFilePath = saveFileDialog.GetPath();
+    m_canvas->SaveFile(m_sessionFilePath);
+    SetTitle(wxString::Format("PCB Autorouter - %s", m_sessionFilePath));
 }
 
 void MyFrame::OnAbout(wxCommandEvent& event)

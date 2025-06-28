@@ -1,5 +1,6 @@
 #include "PcbCanvas.h"
 #include <wx/dcbuffer.h> // For wxBufferedPaintDC
+#include <wx/textfile.h> // For wxTextFile
 
 PcbCanvas::PcbCanvas(wxWindow* parent)
     : wxScrolled<wxPanel>(parent, wxID_ANY)
@@ -49,6 +50,29 @@ void PcbCanvas::LoadSesFile(const wxString& path)
         parentFrame->SetStatusText("Loaded SES file: " + path);
     }
     Refresh();
+}
+
+void PcbCanvas::SaveFile(const wxString& path)
+{
+    // In a real implementation, you would serialize your PCB data
+    // (layers, tracks, pads, nets, etc.) into your neutral format.
+    wxTextFile file;
+    if (!file.Create(path) && !file.Open(path))
+    {
+        wxLogError("Failed to create or open session file '%s'.", path);
+        return;
+    }
+
+    file.AddLine("// Placeholder for neutral PCB routing session data");
+    file.AddLine(wxString::Format("Scale=%.4f", m_scale));
+    file.Write();
+    file.Close();
+
+    wxFrame* parentFrame = wxDynamicCast(GetParent(), wxFrame);
+    if (parentFrame)
+    {
+        parentFrame->SetStatusText("Session saved to: " + path, 0);
+    }
 }
 
 void PcbCanvas::OnPaint(wxPaintEvent& event)

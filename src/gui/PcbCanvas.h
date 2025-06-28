@@ -10,6 +10,7 @@ public:
 
     void LoadKicadPcb(const wxString& path);
     void LoadSesFile(const wxString& path);
+    void SaveFile(const wxString& path);
 
 private:
     void OnPaint(wxPaintEvent& event);
