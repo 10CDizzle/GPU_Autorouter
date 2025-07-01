@@ -3,6 +3,7 @@
 #ifndef WX_PRECOMP
     #include <wx/wx.h>
 #endif
+#include <wx/aboutdlg.h>
 
 #include "PcbCanvas.h" // Include our new custom canvas
 
@@ -256,8 +257,16 @@ void MyFrame::SetNightMode(bool nightMode)
 
 void MyFrame::OnAbout(wxCommandEvent& event)
 {
-    wxMessageBox("This is a GPU-accelerated PCB Autorouter application.",
-                 "About PCB Autorouter", wxOK | wxICON_INFORMATION);
+    wxAboutDialogInfo aboutInfo;
+    aboutInfo.SetName("GPU PCB Autorouter");
+    aboutInfo.SetVersion("0.1.0");
+    aboutInfo.SetDescription(_("A hardware-accelerated autorouter for printed circuit boards."));
+    aboutInfo.SetCopyright("(C) 2024 Chris");
+    aboutInfo.SetWebSite("https://github.com/Chris-plus-plus/GPU_Autorouter", "Project GitHub Page");
+    aboutInfo.AddDeveloper("Chris");
+    // You can add more info like license, etc.
+
+    wxAboutBox(aboutInfo, this);
 }
 
 void MyFrame::OnExit(wxCommandEvent& event)
