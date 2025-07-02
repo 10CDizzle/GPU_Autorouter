@@ -164,7 +164,7 @@ void MyFrame::OnOpenRoutingSession(wxCommandEvent& event)
         return;
 
     m_sessionFilePath = openFileDialog.GetPath();
-    PcbCanvas::SessionState state = m_canvas->LoadFile(m_sessionFilePath);
+    SessionState state = m_canvas->LoadFile(m_sessionFilePath);
 
     if (state.loaded)
     {

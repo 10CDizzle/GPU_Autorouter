@@ -6,8 +6,8 @@ PcbCanvas::PcbCanvas(wxWindow* parent)
     : wxScrolled<wxPanel>(parent, wxID_ANY)
 {
     SetBackgroundStyle(wxBG_STYLE_PAINT); // Use custom paint handler to reduce flicker.
-    SetBackgroundColour(*wxLIGHT_GREY);
 
+    SetNightMode(false); // Initialize with light mode colors
     m_scale = 1.0;
 
     // Set up scrolling. The virtual size is the total area we can scroll over.
@@ -65,6 +65,11 @@ void PcbCanvas::SaveFile(const wxString& path)
 
     file.AddLine("// Placeholder for neutral PCB routing session data");
     file.AddLine(wxString::Format("Scale=%.4f", m_scale));
+
+    // Check if night mode is active by comparing background color
+    bool isNightMode = (m_bgColour == wxColour(50, 50, 50));
+    file.AddLine(wxString::Format("NightMode=%d", isNightMode));
+
     file.Write();
     file.Close();
 
@@ -73,6 +78,60 @@ void PcbCanvas::SaveFile(const wxString& path)
     {
         parentFrame->SetStatusText("Session saved to: " + path, 0);
     }
+}
+
+SessionState PcbCanvas::LoadFile(const wxString& path)
+{
+    SessionState state;
+    wxTextFile file(path);
+    if (!file.Open())
+    {
+        wxLogError("Failed to open session file '%s'.", path);
+        return state;
+    }
+
+    for (size_t i = 0; i < file.GetLineCount(); ++i)
+    {
+        const wxString& line = file.GetLine(i);
+        if (line.StartsWith("Scale="))
+        {
+            line.AfterFirst('=').ToDouble(&state.scale);
+        }
+        else if (line.StartsWith("NightMode="))
+        {
+            long nightModeVal = 0;
+            line.AfterFirst('=').ToLong(&nightModeVal);
+            state.isNightMode = (nightModeVal == 1);
+        }
+    }
+
+    state.loaded = true;
+    return state;
+}
+
+void PcbCanvas::ApplySessionState(const SessionState& state)
+{
+    m_scale = state.scale;
+    SetNightMode(state.isNightMode);
+    Refresh();
+}
+
+void PcbCanvas::SetNightMode(bool nightMode)
+{
+    if (nightMode)
+    {
+        m_bgColour = wxColour(50, 50, 50);
+        m_gridColour = wxColour(80, 80, 80);
+        m_textColour = wxColour(200, 200, 200);
+    }
+    else
+    {
+        m_bgColour = wxSystemSettings::GetColour(wxSYS_COLOUR_APPWORKSPACE);
+        m_gridColour = *wxGREY;
+        m_textColour = *wxBLACK;
+    }
+    SetBackgroundColour(m_bgColour);
+    Refresh();
 }
 
 void PcbCanvas::OnPaint(wxPaintEvent& event)
@@ -94,14 +153,14 @@ void PcbCanvas::OnDraw(wxDC& dc)
     // For now, let's just draw a simple grid and some text.
     // In the future, this is where you will iterate through your
     // PCB data structures (layers, tracks, pads) and draw them.
-    dc.SetPen(*wxGREY_PEN);
+    dc.SetPen(wxPen(m_gridColour));
     for (int i = 0; i < 200; ++i) {
         dc.DrawLine(i * 10, 0, i * 10, 2000);
         dc.DrawLine(0, i * 10, 2000, i * 10);
     }
 
     dc.SetFont(*wxNORMAL_FONT);
-    dc.SetTextForeground(*wxBLACK);
+    dc.SetTextForeground(m_textColour);
     dc.DrawText("PCB Drawing Area - No file loaded.", 20, 20);
 }
 
