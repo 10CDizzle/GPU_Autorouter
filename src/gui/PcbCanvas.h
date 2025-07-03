@@ -2,6 +2,28 @@
 
 #include <wx/wx.h>
 #include <wx/scrolwin.h>
+#include <vector>
+
+// A simple struct to hold a line segment from the PCB file
+struct PcbLine
+{
+    wxPoint start;
+    wxPoint end;
+};
+
+// A class to hold all the parsed PCB data
+class PcbData
+{
+public:
+    void Clear();
+    void AddLine(const PcbLine& line);
+    const std::vector<PcbLine>& GetLines() const { return m_lines; }
+    wxRect GetBoundingBox() const;
+
+private:
+    std::vector<PcbLine> m_lines;
+    wxRect m_boundingBox;
+};
 
 struct SessionState {
     double scale = 1.0;
@@ -40,6 +62,7 @@ private:
     wxPoint m_panStartPos;
     wxPoint m_mouseLogicalPos; // For status bar updates
 
+    PcbData m_pcbData;
     // Theming
     wxColour m_bgColour;
     wxColour m_gridColour;

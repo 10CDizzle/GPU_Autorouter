@@ -2,6 +2,30 @@
 #include <wx/dcbuffer.h> // For wxBufferedPaintDC
 #include <wx/textfile.h> // For wxTextFile
 
+void PcbData::Clear()
+{
+    m_lines.clear();
+    m_boundingBox = wxRect();
+}
+
+void PcbData::AddLine(const PcbLine& line)
+{
+    m_lines.push_back(line);
+
+    // Update bounding box
+    if (m_lines.size() == 1) {
+        m_boundingBox.SetTopLeft(line.start);
+        m_boundingBox.SetBottomRight(line.start);
+    }
+    m_boundingBox.Union(line.start);
+    m_boundingBox.Union(line.end);
+}
+
+wxRect PcbData::GetBoundingBox() const
+{
+    return m_boundingBox;
+}
+
 PcbCanvas::PcbCanvas(wxWindow* parent)
     : wxScrolled<wxPanel>(parent, wxID_ANY)
 {
@@ -28,14 +52,50 @@ PcbCanvas::PcbCanvas(wxWindow* parent)
 
 void PcbCanvas::LoadKicadPcb(const wxString& path)
 {
-    // Placeholder for actual KiCad file parsing logic.
-    // In a real implementation, you would parse the file, populate your
-    // data structures, determine the board's dimensions, and then
-    // update the virtual size with SetVirtualSize().
+    wxTextFile file(path);
+    if (!file.Open())
+    {
+        wxLogError("Failed to open KiCad PCB file '%s'.", path);
+        return;
+    }
+
+    m_pcbData.Clear();
+    const double pcb_scale = 10.0; // Scale factor: 10 pixels per mm
+
+    for (size_t i = 0; i < file.GetLineCount(); ++i)
+    {
+        const wxString& line = file.GetLine(i);
+        if (line.Contains("(gr_line") && line.Contains("(layer Edge.Cuts)"))
+        {
+            // This is a very naive parser. A real one would be better.
+            int startPos = line.find("(start");
+            int endPos = line.find("(end");
+            if (startPos != wxString::npos && endPos != wxString::npos)
+            {
+                wxString startCoords = line.Mid(startPos + 7, line.find(')', startPos) - (startPos + 7));
+                wxString endCoords = line.Mid(endPos + 5, line.find(')', endPos) - (endPos + 5));
+
+                double sx, sy, ex, ey;
+                if (startCoords.BeforeFirst(' ').ToDouble(&sx) && startCoords.AfterFirst(' ').ToDouble(&sy) &&
+                    endCoords.BeforeFirst(' ').ToDouble(&ex) && endCoords.AfterFirst(' ').ToDouble(&ey))
+                {
+                    PcbLine pcbLine;
+                    pcbLine.start = wxPoint(sx * pcb_scale, sy * pcb_scale);
+                    pcbLine.end = wxPoint(ex * pcb_scale, ey * pcb_scale);
+                    m_pcbData.AddLine(pcbLine);
+                }
+            }
+        }
+    }
+
+    wxRect bbox = m_pcbData.GetBoundingBox();
+    bbox.Inflate(100, 100); // Add a 100px margin
+    SetVirtualSize(bbox.GetRight(), bbox.GetBottom());
+
     wxFrame* parentFrame = wxDynamicCast(GetParent(), wxFrame);
     if (parentFrame)
     {
-        parentFrame->SetStatusText("Loaded KiCad file: " + path);
+        parentFrame->SetStatusText(wxString::Format("Loaded %s. Found %zu outline segments.", path, m_pcbData.GetLines().size()));
     }
 
     Refresh(); // Trigger a repaint to show the new data
@@ -150,18 +210,22 @@ void PcbCanvas::OnDraw(wxDC& dc)
     // Apply the zoom scale to the device context.
     dc.SetUserScale(m_scale, m_scale);
 
-    // For now, let's just draw a simple grid and some text.
-    // In the future, this is where you will iterate through your
-    // PCB data structures (layers, tracks, pads) and draw them.
-    dc.SetPen(wxPen(m_gridColour));
-    for (int i = 0; i < 200; ++i) {
-        dc.DrawLine(i * 10, 0, i * 10, 2000);
-        dc.DrawLine(0, i * 10, 2000, i * 10);
+    if (m_pcbData.GetLines().empty())
+    {
+        // Draw placeholder text if no file is loaded
+        dc.SetFont(*wxNORMAL_FONT);
+        dc.SetTextForeground(m_textColour);
+        dc.DrawText("Open a KiCad PCB file to view.", 20, 20);
     }
-
-    dc.SetFont(*wxNORMAL_FONT);
-    dc.SetTextForeground(m_textColour);
-    dc.DrawText("PCB Drawing Area - No file loaded.", 20, 20);
+    else
+    {
+        // Draw the PCB outline
+        dc.SetPen(wxPen(wxColour(255, 255, 0), 2 / m_scale)); // Bright yellow for outline, scale pen width
+        for (const auto& line : m_pcbData.GetLines())
+        {
+            dc.DrawLine(line.start, line.end);
+        }
+    }
 }
 
 void PcbCanvas::OnMouseDown(wxMouseEvent& event)
