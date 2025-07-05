@@ -4,11 +4,26 @@
 #include <wx/scrolwin.h>
 #include <vector>
 
-// A simple struct to hold a line segment from the PCB file
+// --- Data Structures for PCB Geometry ---
+
+enum PadShape {
+    SHAPE_RECT,
+    SHAPE_CIRCLE,
+    SHAPE_OVAL
+};
+
+struct PcbPad
+{
+    wxPoint2DDouble pos;    // Center position in mm
+    wxPoint2DDouble size;   // Size in mm
+    PadShape shape;
+    wxString layer;
+};
+
 struct PcbLine
 {
-    wxPoint start;
-    wxPoint end;
+    wxPoint2DDouble start;
+    wxPoint2DDouble end;
 };
 
 // A class to hold all the parsed PCB data
@@ -17,12 +32,15 @@ class PcbData
 public:
     void Clear();
     void AddLine(const PcbLine& line);
+    void AddPad(const PcbPad& pad);
     const std::vector<PcbLine>& GetLines() const { return m_lines; }
-    wxRect GetBoundingBox() const;
+    const std::vector<PcbPad>& GetPads() const { return m_pads; }
+    wxRect2DDouble GetBoundingBox() const;
 
 private:
     std::vector<PcbLine> m_lines;
-    wxRect m_boundingBox;
+    std::vector<PcbPad> m_pads;
+    wxRect2DDouble m_boundingBox;
 };
 
 struct SessionState {

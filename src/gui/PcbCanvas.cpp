@@ -5,7 +5,8 @@
 void PcbData::Clear()
 {
     m_lines.clear();
-    m_boundingBox = wxRect();
+    m_pads.clear();
+    m_boundingBox = wxRect2DDouble();
 }
 
 void PcbData::AddLine(const PcbLine& line)
@@ -13,15 +14,37 @@ void PcbData::AddLine(const PcbLine& line)
     m_lines.push_back(line);
 
     // Update bounding box
-    if (m_lines.size() == 1) {
-        m_boundingBox.SetTopLeft(line.start);
-        m_boundingBox.SetBottomRight(line.start);
+    if (m_lines.size() == 1 && m_pads.empty()) {
+        m_boundingBox.SetLeft(line.start.m_x);
+        m_boundingBox.SetTop(line.start.m_y);
+        m_boundingBox.SetRight(line.start.m_x);
+        m_boundingBox.SetBottom(line.start.m_y);
     }
     m_boundingBox.Union(line.start);
     m_boundingBox.Union(line.end);
 }
 
-wxRect PcbData::GetBoundingBox() const
+void PcbData::AddPad(const PcbPad& pad)
+{
+    m_pads.push_back(pad);
+
+    // Update bounding box based on pad's geometry
+    wxPoint2DDouble topLeft(pad.pos.m_x - pad.size.m_x / 2.0, pad.pos.m_y - pad.size.m_y / 2.0);
+    wxPoint2DDouble bottomRight(pad.pos.m_x + pad.size.m_x / 2.0, pad.pos.m_y + pad.size.m_y / 2.0);
+
+    if (m_lines.empty() && m_pads.size() == 1) {
+        m_boundingBox.SetLeft(topLeft.m_x);
+        m_boundingBox.SetTop(topLeft.m_y);
+        m_boundingBox.SetRight(bottomRight.m_x);
+        m_boundingBox.SetBottom(bottomRight.m_y);
+    }
+    else {
+        m_boundingBox.Union(topLeft);
+        m_boundingBox.Union(bottomRight);
+    }
+}
+
+wxRect2DDouble PcbData::GetBoundingBox() const
 {
     return m_boundingBox;
 }
@@ -60,12 +83,11 @@ void PcbCanvas::LoadKicadPcb(const wxString& path)
     }
 
     m_pcbData.Clear();
-    const double pcb_scale = 10.0; // Scale factor: 10 pixels per mm
 
     for (size_t i = 0; i < file.GetLineCount(); ++i)
     {
-        const wxString& line = file.GetLine(i);
-        if (line.Contains("(gr_line") && line.Contains("(layer Edge.Cuts)"))
+        wxString line = file.GetLine(i).Trim();
+        if (line.StartsWith("(gr_line") && line.Contains("(layer Edge.Cuts)"))
         {
             // This is a very naive parser. A real one would be better.
             int startPos = line.find("(start");
@@ -80,22 +102,60 @@ void PcbCanvas::LoadKicadPcb(const wxString& path)
                     endCoords.BeforeFirst(' ').ToDouble(&ex) && endCoords.AfterFirst(' ').ToDouble(&ey))
                 {
                     PcbLine pcbLine;
-                    pcbLine.start = wxPoint(sx * pcb_scale, sy * pcb_scale);
-                    pcbLine.end = wxPoint(ex * pcb_scale, ey * pcb_scale);
+                    pcbLine.start = wxPoint2DDouble(sx, sy);
+                    pcbLine.end = wxPoint2DDouble(ex, ey);
                     m_pcbData.AddLine(pcbLine);
                 }
             }
         }
+        else if (line.StartsWith("(pad"))
+        {
+            PcbPad pad;
+            bool isValid = true;
+
+            // Simple parser for pad attributes
+            int atPos = line.find("(at ");
+            int sizePos = line.find("(size ");
+            int layersPos = line.find("(layers ");
+
+            if (atPos == wxString::npos || sizePos == wxString::npos || layersPos == wxString::npos) continue;
+
+            wxString atStr = line.Mid(atPos + 4, line.find(')', atPos) - (atPos + 4));
+            isValid &= atStr.BeforeFirst(' ').ToDouble(&pad.pos.m_x);
+            isValid &= atStr.AfterFirst(' ').ToDouble(&pad.pos.m_y);
+
+            wxString sizeStr = line.Mid(sizePos + 6, line.find(')', sizePos) - (sizePos + 6));
+            isValid &= sizeStr.BeforeFirst(' ').ToDouble(&pad.size.m_x);
+            isValid &= sizeStr.AfterFirst(' ').ToDouble(&pad.size.m_y);
+
+            if (line.Contains(" rect ")) pad.shape = SHAPE_RECT;
+            else if (line.Contains(" circle ")) pad.shape = SHAPE_CIRCLE;
+            else if (line.Contains(" oval ")) pad.shape = SHAPE_OVAL;
+            else isValid = false;
+
+            wxString layersStr = line.Mid(layersPos + 8, line.find(')', layersPos) - (layersPos + 8));
+            if (layersStr.Contains("F.Cu")) pad.layer = "F.Cu";
+            else if (layersStr.Contains("B.Cu")) pad.layer = "B.Cu";
+            else isValid = false;
+
+            if (isValid) m_pcbData.AddPad(pad);
+        }
     }
 
-    wxRect bbox = m_pcbData.GetBoundingBox();
-    bbox.Inflate(100, 100); // Add a 100px margin
-    SetVirtualSize(bbox.GetRight(), bbox.GetBottom());
+    const double pcb_scale = 10.0; // Scale factor: 10 pixels per mm
+    wxRect2DDouble bbox = m_pcbData.GetBoundingBox();
+    // Manually inflate the bounding box since wxRect2DDouble doesn't have Inflate()
+    bbox.m_x -= 10.0;
+    bbox.m_y -= 10.0;
+    bbox.m_width += 20.0;
+    bbox.m_height += 20.0;
+    SetVirtualSize(bbox.GetRight() * pcb_scale, bbox.GetBottom() * pcb_scale);
 
     wxFrame* parentFrame = wxDynamicCast(GetParent(), wxFrame);
     if (parentFrame)
     {
-        parentFrame->SetStatusText(wxString::Format("Loaded %s. Found %zu outline segments.", path, m_pcbData.GetLines().size()));
+        parentFrame->SetStatusText(wxString::Format("Loaded %s. Found %zu outline segments and %zu pads.",
+            path, m_pcbData.GetLines().size(), m_pcbData.GetPads().size()), 0);
     }
 
     Refresh(); // Trigger a repaint to show the new data
@@ -187,7 +247,7 @@ void PcbCanvas::SetNightMode(bool nightMode)
     else
     {
         m_bgColour = wxSystemSettings::GetColour(wxSYS_COLOUR_APPWORKSPACE);
-        m_gridColour = *wxGREY;
+        m_gridColour = wxColour(192, 192, 192); // Standard grey
         m_textColour = *wxBLACK;
     }
     SetBackgroundColour(m_bgColour);
@@ -210,7 +270,9 @@ void PcbCanvas::OnDraw(wxDC& dc)
     // Apply the zoom scale to the device context.
     dc.SetUserScale(m_scale, m_scale);
 
-    if (m_pcbData.GetLines().empty())
+    const double pcb_scale = 10.0; // Scale factor: 10 pixels per mm
+
+    if (m_pcbData.GetLines().empty() && m_pcbData.GetPads().empty())
     {
         // Draw placeholder text if no file is loaded
         dc.SetFont(*wxNORMAL_FONT);
@@ -219,11 +281,42 @@ void PcbCanvas::OnDraw(wxDC& dc)
     }
     else
     {
+        // --- Draw Pads ---
+        wxBrush oldBrush = dc.GetBrush();
+        wxPen oldPen = dc.GetPen();
+        dc.SetPen(*wxTRANSPARENT_PEN); // No outline for pads
+
+        for (const auto& pad : m_pcbData.GetPads())
+        {
+            if (pad.layer == "F.Cu") dc.SetBrush(wxBrush(wxColour(200, 0, 0))); // Red for top copper
+            else if (pad.layer == "B.Cu") dc.SetBrush(wxBrush(wxColour(0, 0, 200))); // Blue for bottom copper
+            else continue;
+
+            // KiCad 'at' is center, wxWidgets drawing is top-left. Convert and scale.
+            double x = (pad.pos.m_x - pad.size.m_x / 2.0) * pcb_scale;
+            double y = (pad.pos.m_y - pad.size.m_y / 2.0) * pcb_scale;
+            double w = pad.size.m_x * pcb_scale;
+            double h = pad.size.m_y * pcb_scale;
+
+            switch (pad.shape)
+            {
+            case SHAPE_RECT:
+                dc.DrawRectangle(wxPoint(x, y), wxSize(w, h));
+                break;
+            case SHAPE_CIRCLE: // fall-through
+            case SHAPE_OVAL:
+                dc.DrawEllipse(wxPoint(x, y), wxSize(w, h));
+                break;
+            }
+        }
+        dc.SetBrush(oldBrush);
+        dc.SetPen(oldPen);
+
         // Draw the PCB outline
         dc.SetPen(wxPen(wxColour(255, 255, 0), 2 / m_scale)); // Bright yellow for outline, scale pen width
         for (const auto& line : m_pcbData.GetLines())
         {
-            dc.DrawLine(line.start, line.end);
+            dc.DrawLine(line.start.m_x * pcb_scale, line.start.m_y * pcb_scale, line.end.m_x * pcb_scale, line.end.m_y * pcb_scale);
         }
     }
 }
