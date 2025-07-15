@@ -5,12 +5,14 @@
 #endif
 #include <wx/aboutdlg.h>
 
-#include "PcbCanvas.h" // Include our new custom canvas
+#include "PcbCanvas.h"
+#include "AutorouterDialog.h"
 
 enum
 {
     ID_ToggleNightMode = wxID_HIGHEST + 1,
-    ID_OpenRoutingSession
+    ID_OpenRoutingSession,
+    ID_Autorouter
 };
 
 // Define a new application type, derived from wxApp
@@ -45,6 +47,7 @@ private:
     void OnSaveAs(wxCommandEvent& event);
     void OnToggleNightMode(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
+    void OnAutorouter(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
 
 public:
@@ -94,9 +97,13 @@ MyFrame::MyFrame()
     wxMenu* menuView = new wxMenu;
     menuView->AppendCheckItem(ID_ToggleNightMode, "&Night Mode\tCtrl-N");
 
+    wxMenu* menuTools = new wxMenu;
+    menuTools->Append(ID_Autorouter, "&Autorouter...\tCtrl-Alt-R");
+
     wxMenuBar *menuBar = new wxMenuBar;
     menuBar->Append(menuFile, "&File");
     menuBar->Append(menuView, "&View");
+    menuBar->Append(menuTools, "&Tools");
     menuBar->Append(menuHelp, "&Help");
 
     SetMenuBar(menuBar);
@@ -131,6 +138,7 @@ MyFrame::MyFrame()
     Bind(wxEVT_MENU, &MyFrame::OnSave, this, wxID_SAVE);
     Bind(wxEVT_MENU, &MyFrame::OnSaveAs, this, wxID_SAVEAS);
     Bind(wxEVT_MENU, &MyFrame::OnToggleNightMode, this, ID_ToggleNightMode);
+    Bind(wxEVT_MENU, &MyFrame::OnAutorouter, this, ID_Autorouter);
     Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
     Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
 }
@@ -225,6 +233,17 @@ void MyFrame::OnSaveAs(wxCommandEvent& event)
 void MyFrame::OnToggleNightMode(wxCommandEvent& event)
 {
     SetNightMode(event.IsChecked());
+}
+
+void MyFrame::OnAutorouter(wxCommandEvent& event)
+{
+    AutorouterDialog dlg(this);
+    if (dlg.ShowModal() == wxID_OK)
+    {
+        // User clicked OK, here you would retrieve the settings from the dialog
+        // and start the autorouting process.
+        SetStatusText("Autorouter settings accepted.", 0);
+    }
 }
 
 void MyFrame::SetNightMode(bool nightMode)

@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(PCBAutorouterApp WIN32
     main.cpp
     PcbCanvas.cpp
-
+    AutorouterDialog.cpp
 )
 
 set_target_properties(PCBAutorouterApp PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
