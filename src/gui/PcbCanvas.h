@@ -33,13 +33,16 @@ public:
     void Clear();
     void AddLine(const PcbLine& line);
     void AddPad(const PcbPad& pad);
+    void AddNet(const wxString& netName);
     const std::vector<PcbLine>& GetLines() const { return m_lines; }
     const std::vector<PcbPad>& GetPads() const { return m_pads; }
+    const std::vector<wxString>& GetNets() const { return m_nets; }
     wxRect2DDouble GetBoundingBox() const;
 
 private:
     std::vector<PcbLine> m_lines;
     std::vector<PcbPad> m_pads;
+    std::vector<wxString> m_nets;
     wxRect2DDouble m_boundingBox;
 };
 
@@ -61,6 +64,7 @@ public:
     void ApplySessionState(const SessionState& state);
     void SetNightMode(bool nightMode);
 
+    wxArrayString GetNetNames() const;
 private:
     void OnPaint(wxPaintEvent& event);
     void OnDraw(wxDC& dc);

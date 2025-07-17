@@ -6,6 +6,7 @@ void PcbData::Clear()
 {
     m_lines.clear();
     m_pads.clear();
+    m_nets.clear();
     m_boundingBox = wxRect2DDouble();
 }
 
@@ -47,6 +48,15 @@ void PcbData::AddPad(const PcbPad& pad)
 wxRect2DDouble PcbData::GetBoundingBox() const
 {
     return m_boundingBox;
+}
+
+void PcbData::AddNet(const wxString& netName)
+{
+    // Avoid adding duplicates or empty nets
+    if (!netName.IsEmpty() && std::find(m_nets.begin(), m_nets.end(), netName) == m_nets.end())
+    {
+        m_nets.push_back(netName);
+    }
 }
 
 PcbCanvas::PcbCanvas(wxWindow* parent)
@@ -140,6 +150,17 @@ void PcbCanvas::LoadKicadPcb(const wxString& path)
 
             if (isValid) m_pcbData.AddPad(pad);
         }
+        else if (line.StartsWith("(net " ))
+        {
+            // Example: (net 0 "Net-(J2-Pad1)")
+            // We just want the name inside the quotes
+            int quoteStart = line.find('"');
+            if (quoteStart != wxString::npos)
+            {
+                int quoteEnd = line.find('"', quoteStart + 1);
+                m_pcbData.AddNet(line.Mid(quoteStart + 1, quoteEnd - (quoteStart + 1)));
+            }
+        }
     }
 
     const double pcb_scale = 10.0; // Scale factor: 10 pixels per mm
@@ -154,8 +175,8 @@ void PcbCanvas::LoadKicadPcb(const wxString& path)
     wxFrame* parentFrame = wxDynamicCast(GetParent(), wxFrame);
     if (parentFrame)
     {
-        parentFrame->SetStatusText(wxString::Format("Loaded %s. Found %zu outline segments and %zu pads.",
-            path, m_pcbData.GetLines().size(), m_pcbData.GetPads().size()), 0);
+        parentFrame->SetStatusText(wxString::Format("Loaded %s. Found %zu outline segments, %zu pads, and %zu nets.",
+            path, m_pcbData.GetLines().size(), m_pcbData.GetPads().size(), m_pcbData.GetNets().size()), 0);
     }
 
     Refresh(); // Trigger a repaint to show the new data
@@ -236,6 +257,17 @@ void PcbCanvas::ApplySessionState(const SessionState& state)
     Refresh();
 }
 
+wxArrayString PcbCanvas::GetNetNames() const
+{
+    wxArrayString names;
+    const auto& nets = m_pcbData.GetNets();
+    names.reserve(nets.size());
+    for (const auto& net : nets)
+    {
+        names.Add(net);
+    }
+    return names;
+}
 void PcbCanvas::SetNightMode(bool nightMode)
 {
     if (nightMode)

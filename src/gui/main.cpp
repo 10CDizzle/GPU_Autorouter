@@ -237,11 +237,18 @@ void MyFrame::OnToggleNightMode(wxCommandEvent& event)
 
 void MyFrame::OnAutorouter(wxCommandEvent& event)
 {
-    AutorouterDialog dlg(this);
+    wxArrayString netNames = m_canvas->GetNetNames();
+    if (netNames.IsEmpty())
+    {
+        wxMessageBox("Please open a KiCad PCB file with defined nets first.", "No Nets Loaded", wxOK | wxICON_INFORMATION, this);
+        return;
+    }
+
+    AutorouterDialog dlg(this, netNames);
     if (dlg.ShowModal() == wxID_OK)
     {
-        // User clicked OK, here you would retrieve the settings from the dialog
-        // and start the autorouting process.
+        wxArrayInt selections = dlg.GetSelectedNets();
+        int passes = dlg.GetRoutingPasses();
         SetStatusText("Autorouter settings accepted.", 0);
     }
 }
