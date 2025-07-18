@@ -22,9 +22,14 @@ set(wxBUILD_SHARED OFF)
 set(wxBUILD_SAMPLES OFF CACHE INTERNAL "wxWidgets Samples")
 set(wxBUILD_TESTS OFF CACHE INTERNAL "wxWidgets Tests")
 
+# This also makes the Catch2 library target available for us to use.
 add_subdirectory(lib/wxWidgets-3.3.0)
+
+# Define our core logic as a library that other targets can link to.
+add_subdirectory(src/core)
+
 # Add subdirectories
-# We'll add autorouter_core later
 add_subdirectory(src/gui)
-# add_subdirectory(src/autorouter_core) # For later
-# add_subdirectory(tests) # For later
+
+# Add our tests directory, which will create the test executable.
+add_subdirectory(tests)

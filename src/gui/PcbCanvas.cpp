@@ -1,67 +1,12 @@
 #include "PcbCanvas.h"
 #include <wx/dcbuffer.h> // For wxBufferedPaintDC
 #include <wx/textfile.h> // For wxTextFile
-
-void PcbData::Clear()
-{
-    m_lines.clear();
-    m_pads.clear();
-    m_nets.clear();
-    m_boundingBox = wxRect2DDouble();
-}
-
-void PcbData::AddLine(const PcbLine& line)
-{
-    m_lines.push_back(line);
-
-    // Update bounding box
-    if (m_lines.size() == 1 && m_pads.empty()) {
-        m_boundingBox.SetLeft(line.start.m_x);
-        m_boundingBox.SetTop(line.start.m_y);
-        m_boundingBox.SetRight(line.start.m_x);
-        m_boundingBox.SetBottom(line.start.m_y);
-    }
-    m_boundingBox.Union(line.start);
-    m_boundingBox.Union(line.end);
-}
-
-void PcbData::AddPad(const PcbPad& pad)
-{
-    m_pads.push_back(pad);
-
-    // Update bounding box based on pad's geometry
-    wxPoint2DDouble topLeft(pad.pos.m_x - pad.size.m_x / 2.0, pad.pos.m_y - pad.size.m_y / 2.0);
-    wxPoint2DDouble bottomRight(pad.pos.m_x + pad.size.m_x / 2.0, pad.pos.m_y + pad.size.m_y / 2.0);
-
-    if (m_lines.empty() && m_pads.size() == 1) {
-        m_boundingBox.SetLeft(topLeft.m_x);
-        m_boundingBox.SetTop(topLeft.m_y);
-        m_boundingBox.SetRight(bottomRight.m_x);
-        m_boundingBox.SetBottom(bottomRight.m_y);
-    }
-    else {
-        m_boundingBox.Union(topLeft);
-        m_boundingBox.Union(bottomRight);
-    }
-}
-
-wxRect2DDouble PcbData::GetBoundingBox() const
-{
-    return m_boundingBox;
-}
-
-void PcbData::AddNet(const wxString& netName)
-{
-    // Avoid adding duplicates or empty nets
-    if (!netName.IsEmpty() && std::find(m_nets.begin(), m_nets.end(), netName) == m_nets.end())
-    {
-        m_nets.push_back(netName);
-    }
-}
+#include "../core/AutorouterCore.h"
 
 PcbCanvas::PcbCanvas(wxWindow* parent)
     : wxScrolled<wxPanel>(parent, wxID_ANY)
 {
+    m_pcbDataPtr = nullptr;
     SetBackgroundStyle(wxBG_STYLE_PAINT); // Use custom paint handler to reduce flicker.
 
     SetNightMode(false); // Initialize with light mode colors
@@ -81,105 +26,6 @@ PcbCanvas::PcbCanvas(wxWindow* parent)
     Bind(wxEVT_KEY_DOWN, &PcbCanvas::OnKeyDown, this);
     Bind(wxEVT_ENTER_WINDOW, &PcbCanvas::OnEnterWindow, this);
     Bind(wxEVT_LEAVE_WINDOW, &PcbCanvas::OnLeaveWindow, this);
-}
-
-void PcbCanvas::LoadKicadPcb(const wxString& path)
-{
-    wxTextFile file(path);
-    if (!file.Open())
-    {
-        wxLogError("Failed to open KiCad PCB file '%s'.", path);
-        return;
-    }
-
-    m_pcbData.Clear();
-
-    for (size_t i = 0; i < file.GetLineCount(); ++i)
-    {
-        wxString line = file.GetLine(i).Trim();
-        if (line.StartsWith("(gr_line") && line.Contains("(layer Edge.Cuts)"))
-        {
-            // This is a very naive parser. A real one would be better.
-            int startPos = line.find("(start");
-            int endPos = line.find("(end");
-            if (startPos != wxString::npos && endPos != wxString::npos)
-            {
-                wxString startCoords = line.Mid(startPos + 7, line.find(')', startPos) - (startPos + 7));
-                wxString endCoords = line.Mid(endPos + 5, line.find(')', endPos) - (endPos + 5));
-
-                double sx, sy, ex, ey;
-                if (startCoords.BeforeFirst(' ').ToDouble(&sx) && startCoords.AfterFirst(' ').ToDouble(&sy) &&
-                    endCoords.BeforeFirst(' ').ToDouble(&ex) && endCoords.AfterFirst(' ').ToDouble(&ey))
-                {
-                    PcbLine pcbLine;
-                    pcbLine.start = wxPoint2DDouble(sx, sy);
-                    pcbLine.end = wxPoint2DDouble(ex, ey);
-                    m_pcbData.AddLine(pcbLine);
-                }
-            }
-        }
-        else if (line.StartsWith("(pad"))
-        {
-            PcbPad pad;
-            bool isValid = true;
-
-            // Simple parser for pad attributes
-            int atPos = line.find("(at ");
-            int sizePos = line.find("(size ");
-            int layersPos = line.find("(layers ");
-
-            if (atPos == wxString::npos || sizePos == wxString::npos || layersPos == wxString::npos) continue;
-
-            wxString atStr = line.Mid(atPos + 4, line.find(')', atPos) - (atPos + 4));
-            isValid &= atStr.BeforeFirst(' ').ToDouble(&pad.pos.m_x);
-            isValid &= atStr.AfterFirst(' ').ToDouble(&pad.pos.m_y);
-
-            wxString sizeStr = line.Mid(sizePos + 6, line.find(')', sizePos) - (sizePos + 6));
-            isValid &= sizeStr.BeforeFirst(' ').ToDouble(&pad.size.m_x);
-            isValid &= sizeStr.AfterFirst(' ').ToDouble(&pad.size.m_y);
-
-            if (line.Contains(" rect ")) pad.shape = SHAPE_RECT;
-            else if (line.Contains(" circle ")) pad.shape = SHAPE_CIRCLE;
-            else if (line.Contains(" oval ")) pad.shape = SHAPE_OVAL;
-            else isValid = false;
-
-            wxString layersStr = line.Mid(layersPos + 8, line.find(')', layersPos) - (layersPos + 8));
-            if (layersStr.Contains("F.Cu")) pad.layer = "F.Cu";
-            else if (layersStr.Contains("B.Cu")) pad.layer = "B.Cu";
-            else isValid = false;
-
-            if (isValid) m_pcbData.AddPad(pad);
-        }
-        else if (line.StartsWith("(net " ))
-        {
-            // Example: (net 0 "Net-(J2-Pad1)")
-            // We just want the name inside the quotes
-            int quoteStart = line.find('"');
-            if (quoteStart != wxString::npos)
-            {
-                int quoteEnd = line.find('"', quoteStart + 1);
-                m_pcbData.AddNet(line.Mid(quoteStart + 1, quoteEnd - (quoteStart + 1)));
-            }
-        }
-    }
-
-    const double pcb_scale = 10.0; // Scale factor: 10 pixels per mm
-    wxRect2DDouble bbox = m_pcbData.GetBoundingBox();
-    // Manually inflate the bounding box since wxRect2DDouble doesn't have Inflate()
-    bbox.m_x -= 10.0;
-    bbox.m_y -= 10.0;
-    bbox.m_width += 20.0;
-    bbox.m_height += 20.0;
-    SetVirtualSize(bbox.GetRight() * pcb_scale, bbox.GetBottom() * pcb_scale);
-
-    wxFrame* parentFrame = wxDynamicCast(GetParent(), wxFrame);
-    if (parentFrame)
-    {
-        parentFrame->SetStatusText(wxString::Format("Loaded %s. Found %zu outline segments, %zu pads, and %zu nets.",
-            path, m_pcbData.GetLines().size(), m_pcbData.GetPads().size(), m_pcbData.GetNets().size()), 0);
-    }
-
-    Refresh(); // Trigger a repaint to show the new data
 }
 
 void PcbCanvas::LoadSesFile(const wxString& path)
@@ -257,17 +103,6 @@ void PcbCanvas::ApplySessionState(const SessionState& state)
     Refresh();
 }
 
-wxArrayString PcbCanvas::GetNetNames() const
-{
-    wxArrayString names;
-    const auto& nets = m_pcbData.GetNets();
-    names.reserve(nets.size());
-    for (const auto& net : nets)
-    {
-        names.Add(net);
-    }
-    return names;
-}
 void PcbCanvas::SetNightMode(bool nightMode)
 {
     if (nightMode)
@@ -304,7 +139,7 @@ void PcbCanvas::OnDraw(wxDC& dc)
 
     const double pcb_scale = 10.0; // Scale factor: 10 pixels per mm
 
-    if (m_pcbData.GetLines().empty() && m_pcbData.GetPads().empty())
+    if (!m_pcbDataPtr || (m_pcbDataPtr->GetLines().empty() && m_pcbDataPtr->GetPads().empty()))
     {
         // Draw placeholder text if no file is loaded
         dc.SetFont(*wxNORMAL_FONT);
@@ -318,7 +153,7 @@ void PcbCanvas::OnDraw(wxDC& dc)
         wxPen oldPen = dc.GetPen();
         dc.SetPen(*wxTRANSPARENT_PEN); // No outline for pads
 
-        for (const auto& pad : m_pcbData.GetPads())
+        for (const auto& pad : m_pcbDataPtr->GetPads())
         {
             if (pad.layer == "F.Cu") dc.SetBrush(wxBrush(wxColour(200, 0, 0))); // Red for top copper
             else if (pad.layer == "B.Cu") dc.SetBrush(wxBrush(wxColour(0, 0, 200))); // Blue for bottom copper
@@ -346,11 +181,29 @@ void PcbCanvas::OnDraw(wxDC& dc)
 
         // Draw the PCB outline
         dc.SetPen(wxPen(wxColour(255, 255, 0), 2 / m_scale)); // Bright yellow for outline, scale pen width
-        for (const auto& line : m_pcbData.GetLines())
+        for (const auto& line : m_pcbDataPtr->GetLines())
         {
             dc.DrawLine(line.start.m_x * pcb_scale, line.start.m_y * pcb_scale, line.end.m_x * pcb_scale, line.end.m_y * pcb_scale);
         }
     }
+}
+
+void PcbCanvas::SetPcbData(const PcbData* data)
+{
+    m_pcbDataPtr = data;
+    UpdateVirtualSize();
+    Refresh();
+}
+
+void PcbCanvas::UpdateVirtualSize()
+{
+    if (!m_pcbDataPtr) return;
+
+    const double pcb_scale = 10.0; // Scale factor: 10 pixels per mm
+    wxRect2DDouble bbox = m_pcbDataPtr->GetBoundingBox();
+    bbox.m_x -= 10.0; bbox.m_y -= 10.0;
+    bbox.m_width += 20.0; bbox.m_height += 20.0;
+    SetVirtualSize(bbox.GetRight() * pcb_scale, bbox.GetBottom() * pcb_scale);
 }
 
 void PcbCanvas::OnMouseDown(wxMouseEvent& event)

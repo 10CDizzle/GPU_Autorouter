@@ -5,8 +5,10 @@
 #endif
 #include <wx/aboutdlg.h>
 
-#include "PcbCanvas.h"
+#include "PcbCanvas.h" // Includes PcbData.h transitively
 #include "AutorouterDialog.h"
+#include "../core/AutorouterCore.h"
+#include <memory>
 
 enum
 {
@@ -21,6 +23,9 @@ class MyApp : public wxApp
 public:
     // This is the equivalent of main() in a wxWidgets program.
     virtual bool OnInit();
+
+private:
+    bool RunHeadlessTest();
 };
 
 // Define a new frame type, derived from wxFrame
@@ -31,6 +36,7 @@ public:
 
 private:
     // A pointer to our custom drawing canvas
+    std::unique_ptr<AutorouterCore> m_core;
     PcbCanvas* m_canvas;
     bool m_isNightMode;
 
@@ -60,24 +66,88 @@ wxIMPLEMENT_APP(MyApp);
 // 'Main program' equivalent: the program execution "starts" here
 bool MyApp::OnInit()
 {
+    // Add command line parsing for test mode
+    wxCmdLineParser parser(argc, argv);
+    parser.AddSwitch("t", "test-mode", "Run in command-line test mode");
+    parser.AddOption("pcb", "pcb_file", "Path to KiCad PCB file for testing", wxCMD_LINE_VAL_STRING);
+
+    // We must call the base class method to parse the command line
+    if (parser.Parse(false) != 0)
+    {
+        // This is not a fatal error, just an indication of bad command line
+        // in GUI mode. We can ignore it and proceed.
+    }
+
+    if (parser.Found("t"))
+    {
+        // The test runner returns false to prevent the GUI event loop
+        return RunHeadlessTest();
+    }
+
     MyFrame *frame = new MyFrame();
 
     // Check for night mode based on time (e.g., after 6 PM or before 6 AM)
-    wxDateTime now = wxDateTime::Now();
-    int hour = now.GetHour();
-    if (hour >= 18 || hour < 6)
-    {
-        frame->SetNightMode(true);
-    }
+    // wxDateTime now = wxDateTime::Now();
+    // int hour = now.GetHour();
+    // if (hour >= 18 || hour < 6)
+    // {
+    //     frame->SetNightMode(true);
+    // }
 
     frame->Show(true);
     return true;
+}
+
+bool MyApp::RunHeadlessTest()
+{
+    wxCmdLineParser parser(argc, argv);
+    parser.AddOption("pcb", "pcb_file", "Path to KiCad PCB file for testing", wxCMD_LINE_VAL_STRING);
+    parser.Parse();
+
+    wxString pcbFile;
+    if (!parser.Found("pcb", &pcbFile)) {
+        wxFprintf(stderr, "Error: --pcb argument is required for test mode.\n");
+        return false;
+    }
+
+    AutorouterCore core;
+    if (!core.LoadKicadPcb(pcbFile)) {
+        wxFprintf(stderr, "Error: Failed to load PCB file '%s'.\n", pcbFile.c_str());
+        return false;
+    }
+
+    RoutingSettings settings;
+    wxArrayInt netsToRoute; // Route all nets for now
+    const auto& allNets = core.GetPcbData().GetNets();
+    for (size_t i = 0; i < allNets.size(); ++i) {
+        netsToRoute.Add(i);
+    }
+
+    RoutingResult result = core.Route(settings, netsToRoute);
+
+    // Print results to stdout in JSON format
+    wxPrintf("{\n");
+    wxPrintf("  \"success\": %s,\n", result.success ? "true" : "false");
+    wxPrintf("  \"routing_time_ms\": %.2f,\n", result.time_ms);
+    wxPrintf("  \"nets_total\": %d,\n", result.nets_total);
+    wxPrintf("  \"nets_routed\": %d,\n", result.nets_routed);
+    if (result.nets_total > 0)
+        wxPrintf("  \"completion_rate_pct\": %.2f,\n", (double)result.nets_routed / result.nets_total * 100.0);
+    else
+        wxPrintf("  \"completion_rate_pct\": 0.0,\n");
+    wxPrintf("  \"total_track_length_mm\": %.2f,\n", result.total_track_length);
+    wxPrintf("  \"via_count\": %d\n", result.via_count);
+    wxPrintf("}\n");
+
+    // returning false from OnInit prevents the main loop
+    return false;
 }
 
 // MyFrame constructor
 MyFrame::MyFrame()
     : wxFrame(NULL, wxID_ANY, "PCB Autorouter GUI Test")
 {
+    m_core = std::make_unique<AutorouterCore>();
     m_isNightMode = false; // Default to light mode
 
     // --- 1. Create the Menubar ---
@@ -152,14 +222,16 @@ void MyFrame::OnOpenKicad(wxCommandEvent& event)
     if (openFileDialog.ShowModal() == wxID_CANCEL)
         return; // The user cancelled
 
-    wxString designPath = openFileDialog.GetPath();
-    m_canvas->LoadKicadPcb(designPath);
+    if (m_core->LoadKicadPcb(openFileDialog.GetPath()))
+    {
+        m_canvas->SetPcbData(&m_core->GetPcbData());
 
-    // A new design is loaded, so any previous session file path is invalid
-    m_sessionFilePath.clear();
-    m_saveMenuItem->Enable(true);
-    m_saveAsMenuItem->Enable(true);
-    SetTitle(wxString::Format("PCB Autorouter - %s", designPath));
+        // A new design is loaded, so any previous session file path is invalid
+        m_sessionFilePath.clear();
+        m_saveMenuItem->Enable(true);
+        m_saveAsMenuItem->Enable(true);
+        SetTitle(wxString::Format("PCB Autorouter - %s", openFileDialog.GetPath()));
+    }
 }
 
 void MyFrame::OnOpenRoutingSession(wxCommandEvent& event)
@@ -193,14 +265,15 @@ void MyFrame::OnOpenSes(wxCommandEvent& event)
     if (openFileDialog.ShowModal() == wxID_CANCEL)
         return;
 
-    wxString designPath = openFileDialog.GetPath();
-    m_canvas->LoadSesFile(designPath);
+    // wxString designPath = openFileDialog.GetPath();
+    // m_canvas->LoadSesFile(designPath); // This needs to be moved to core as well
 
-    // A new design is loaded, so any previous session file path is invalid
-    m_sessionFilePath.clear();
-    m_saveMenuItem->Enable(true);
-    m_saveAsMenuItem->Enable(true);
-    SetTitle(wxString::Format("PCB Autorouter - %s", designPath));
+    // // A new design is loaded, so any previous session file path is invalid
+    // m_sessionFilePath.clear();
+    // m_saveMenuItem->Enable(true);
+    // m_saveAsMenuItem->Enable(true);
+    // SetTitle(wxString::Format("PCB Autorouter - %s", designPath));
+    wxMessageBox("Loading .ses files is not yet implemented in the new core.", "Not Implemented", wxOK | wxICON_INFORMATION, this);
 }
 
 void MyFrame::OnSave(wxCommandEvent& event)
@@ -237,11 +310,17 @@ void MyFrame::OnToggleNightMode(wxCommandEvent& event)
 
 void MyFrame::OnAutorouter(wxCommandEvent& event)
 {
-    wxArrayString netNames = m_canvas->GetNetNames();
-    if (netNames.IsEmpty())
+    const auto& nets = m_core->GetPcbData().GetNets();
+    if (nets.empty())
     {
         wxMessageBox("Please open a KiCad PCB file with defined nets first.", "No Nets Loaded", wxOK | wxICON_INFORMATION, this);
         return;
+    }
+
+    wxArrayString netNames;
+    netNames.reserve(nets.size());
+    for(const auto& net : nets) {
+        netNames.Add(net);
     }
 
     AutorouterDialog dlg(this, netNames);
@@ -249,7 +328,10 @@ void MyFrame::OnAutorouter(wxCommandEvent& event)
     {
         wxArrayInt selections = dlg.GetSelectedNets();
         int passes = dlg.GetRoutingPasses();
-        SetStatusText("Autorouter settings accepted.", 0);
+
+        RoutingSettings settings{passes};
+        m_core->Route(settings, selections); // In a real app, this should be in a thread
+        SetStatusText("Routing complete.", 0);
     }
 }
 
