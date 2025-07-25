@@ -1,0 +1,22 @@
+Here is a guide on what kinds of PCBs to stock your test folder with, followed by the code to automatically run tests on all of them.
+
+What PCB Files Should You Use for Testing?
+A strong test suite includes a variety of boards that stress different aspects of the routing algorithm. I recommend creating a tests/pcb_files/ directory and populating it with boards that fall into these categories:
+
+Simple/Sanity Check:
+
+simple_2layer.kicad_pcb: A very small 2-layer board with a few components and nets. This is your baseline "smoke test" to ensure the fundamental loading and routing logic works. You likely already have this.
+Density and Complexity:
+
+medium_density.kicad_pcb: A typical hobbyist-level board (like an Arduino shield) with a moderate number of components and traces. This tests standard routing performance.
+high_density_smd.kicad_pcb: A board packed with small surface-mount components (e.g., 0402, 0603) and fine-pitch ICs. This is crucial for testing the router's ability to navigate tight clearances and its fanout strategies.
+Component Types:
+
+through_hole_heavy.kicad_pcb: A board dominated by through-hole components (DIP packages, headers, connectors). This creates large obstacles that the router must navigate around.
+mixed_components.kicad_pcb: A realistic board with a mix of SMD and through-hole parts.
+Challenging Scenarios & Edge Cases:
+
+unroutable.kicad_pcb: A deliberately designed board that is impossible to route 100% with standard design rules. This is essential for testing that your router correctly reports a completion rate less than 100% and doesn't enter an infinite loop.
+multi_layer.kicad_pcb: A 4 or 6-layer board. While your router may not support this yet, having it in the test suite prepares you for future development and ensures the parser doesn't fail.
+board_with_no_nets.kicad_pcb: A board that has footprints but no defined connections. Your core logic should handle this gracefully without crashing.
+empty_board.kicad_pcb: A file containing only an Edge.Cuts outline. This tests the parser against minimal data.
