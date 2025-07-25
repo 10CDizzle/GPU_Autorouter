@@ -1,0 +1,10 @@
+This directory contains KiCad project files used for testing the GPU_Autorouter.
+The original projects are sourced from the following locations:
+
+Project: high_density_smd
+Original Name: MLX90640-Thermal-Camera
+Source: https://github.com/jobitjoseph/MLX90640-Thermal-Camera
+
+Project: mixed_components
+Original Name: A64-OLinuXino (and other variants)
+Source: https://github.com/OLIMEX/OLINUXINO

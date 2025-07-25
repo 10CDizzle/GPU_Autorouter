@@ -17,6 +17,7 @@ struct PcbPad
     wxPoint2DDouble size;   // Size in mm
     PadShape shape;
     wxString layer;
+    int net_id = -1;        // Index into the PcbData's net list
 };
 
 struct PcbLine
@@ -36,6 +37,7 @@ public:
     const std::vector<PcbLine>& GetLines() const { return m_lines; }
     const std::vector<PcbPad>& GetPads() const { return m_pads; }
     const std::vector<wxString>& GetNets() const { return m_nets; }
+    int GetNetIdByName(const wxString& netName) const;
     wxRect2DDouble GetBoundingBox() const;
 
 private:

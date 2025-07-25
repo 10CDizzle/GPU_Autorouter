@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PcbData.h"
+#include "RoutingGrid.h"
 #include <wx/stopwatch.h>
 
 struct RoutingSettings

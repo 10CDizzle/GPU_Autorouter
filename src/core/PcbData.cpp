@@ -57,3 +57,13 @@ void PcbData::AddNet(const wxString& netName)
         m_nets.push_back(netName);
     }
 }
+
+int PcbData::GetNetIdByName(const wxString& netName) const
+{
+    auto it = std::find(m_nets.begin(), m_nets.end(), netName);
+    if (it != m_nets.end())
+    {
+        return std::distance(m_nets.begin(), it);
+    }
+    return -1; // Not found
+}

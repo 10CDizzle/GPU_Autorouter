@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Define the core logic as a library
 add_library(AutorouterCore
     PcbData.cpp
+    RoutingGrid.cpp
     AutorouterCore.cpp
 )
 

@@ -2,6 +2,7 @@
 
 #include "../src/core/AutorouterCore.h"
 #include <wx/app.h>
+#include <wx/filename.h>
 #include <wx/dir.h>
 
 // We need a dummy wxApp object for the test executable because wxWidgets
@@ -34,8 +35,21 @@ TEST_CASE("PCB File Loading and Routing Metrics", "[core][filesystem]")
     // This loop creates a dynamic section for each file found.
     for (const wxString& pcbFile : pcbFiles)
     {
-        // Use the filename as the section name for clear test reporting.
-        SECTION(pcbFile.ToStdString())
+        wxFileName fn(pcbFile);
+        wxString testName;
+        wxArrayString dirs = fn.GetDirs();
+
+        // Create a more descriptive name based on the folder structure.
+        if (dirs.GetCount() > 1) {
+            // It's in a category subdirectory, e.g., pcb_files/high_density_smd/
+            // We want a name like "high_density_smd / board.kicad_pcb"
+            testName = dirs.Last() + wxT(" / ") + fn.GetFullName();
+        } else {
+            // It's directly in pcb_files, e.g., pcb_files/simple.kicad_pcb
+            testName = fn.GetFullName();
+        }
+
+        SECTION(testName.ToStdString())
         {
             AutorouterCore core;
             REQUIRE(core.LoadKicadPcb(pcbFile));
@@ -56,11 +70,27 @@ TEST_CASE("PCB File Loading and Routing Metrics", "[core][filesystem]")
             RoutingSettings settings;
             RoutingResult result = core.Route(settings, netsToRoute);
 
-            // Check against the placeholder values currently in AutorouterCore::Route.
+            // With a real router, we can't know the exact results beforehand.
+            // Instead, we check for plausible outcomes.
+
+            // 1. The total number of nets should match the input.
             CHECK(result.nets_total == static_cast<int>(allNets.size()));
-            CHECK(result.nets_routed == static_cast<int>(allNets.size() * 0.95));
-            CHECK(result.total_track_length == 1234.5);
-            CHECK(result.via_count == 87);
+
+            // 2. The number of routed nets should be between 0 and total.
+            CHECK(result.nets_routed >= 0);
+            CHECK(result.nets_routed <= result.nets_total);
+
+            // 3. Track length must be non-negative. If something was routed, it should be positive.
+            CHECK(result.total_track_length >= 0.0);
+            if (result.nets_routed > 0) {
+                CHECK(result.total_track_length > 0.0);
+            }
+
+            // 4. Via count is not implemented yet.
+            CHECK(result.via_count == 0);
+
+            // 5. Log the results for manual inspection.
+            INFO("Routed " << result.nets_routed << "/" << result.nets_total << " nets in " << result.time_ms << "ms. Total length: " << result.total_track_length << "mm.");
         }
     }
 }
