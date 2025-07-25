@@ -4,6 +4,7 @@
     #include <wx/wx.h>
 #endif
 #include <wx/aboutdlg.h>
+#include <wx/cmdline.h>
 
 #include "PcbCanvas.h" // Includes PcbData.h transitively
 #include "AutorouterDialog.h"

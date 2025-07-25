@@ -22,8 +22,17 @@ set(wxBUILD_SHARED OFF)
 set(wxBUILD_SAMPLES OFF CACHE INTERNAL "wxWidgets Samples")
 set(wxBUILD_TESTS OFF CACHE INTERNAL "wxWidgets Tests")
 
-# This also makes the Catch2 library target available for us to use.
+# This builds wxWidgets itself. Because wxBUILD_TESTS is OFF, this does NOT
+# create the Catch2 targets.
 add_subdirectory(lib/wxWidgets-3.3.0)
+
+# We need to build the static library version of Catch2 to get the
+# Catch2::Catch2WithMain target that includes the main() function.
+set(CATCH_BUILD_STATIC_LIBRARY ON)
+
+# We must manually include the Catch2 testing framework, which is bundled with
+# wxWidgets, so that its targets are available for our own test executable.
+add_subdirectory(lib/wxWidgets-3.3.0/3rdparty/catch)
 
 # Define our core logic as a library that other targets can link to.
 add_subdirectory(src/core)

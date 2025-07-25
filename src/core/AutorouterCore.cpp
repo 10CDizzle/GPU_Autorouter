@@ -1,6 +1,6 @@
 #include "AutorouterCore.h"
 #include <wx/textfile.h>
-#include <wx/log.hh>
+#include <wx/log.h>
 #include <algorithm>
 
 AutorouterCore::AutorouterCore()

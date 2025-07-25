@@ -1,0 +1,4 @@
+{
+    "testMate.cpp.test.executables": "build/windows-msvc-debug/tests/Debug/AutorouterTests.exe",
+    "testMate.cpp.test.workingDirectory": "${workspaceFolder}/tests"
+}
