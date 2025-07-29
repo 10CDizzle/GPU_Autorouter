@@ -14,11 +14,14 @@
 *.user
 
 # Ignore potential build artifacts within the wxWidgets source tree
-/lib/wxWidgets-3.3.0/*
+/lib/
+*.json
 
 # Executables and libraries
 *.exe
 *.dll
 *.lib
 *.obj
-CMakePresets.json
+
+# Test artifacts
+/tests/pcb_files/progress-log.txt

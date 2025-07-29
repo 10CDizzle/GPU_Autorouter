@@ -15,6 +15,7 @@
 
 # Ignore potential build artifacts within the wxWidgets source tree
 /lib/*
+/build/*
 
 # Executables and libraries
 *.exe

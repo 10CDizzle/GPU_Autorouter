@@ -34,6 +34,9 @@ set(CATCH_BUILD_STATIC_LIBRARY ON)
 # wxWidgets, so that its targets are available for our own test executable.
 add_subdirectory(lib/wxWidgets-3.3.0/3rdparty/catch)
 
+# Add our KiCad parser library
+add_subdirectory(src/kicad)
+
 # Define our core logic as a library that other targets can link to.
 add_subdirectory(src/core)
 

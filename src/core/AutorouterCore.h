@@ -1,39 +1,29 @@
-#pragma once
+#ifndef AUTOROUTER_CORE_H
+#define AUTOROUTER_CORE_H
 
-#include "PcbData.h"
-#include "RoutingGrid.h"
-#include <wx/stopwatch.h>
+#include <memory>
+#include <string>
 
-struct RoutingSettings
-{
-    int passes = 10;
-    // Future settings: track_width, clearance, via_cost, etc.
-};
+class PcbData;
+class PcbParser;
 
-struct RoutingResult
-{
-    bool success = false;
-    double time_ms = 0.0;
-    int nets_total = 0;
-    int nets_routed = 0;
-    double total_track_length = 0.0;
-    int via_count = 0;
-};
-
-class AutorouterCore
-{
+class AutorouterCore {
 public:
     AutorouterCore();
+    ~AutorouterCore();
 
-    bool LoadKicadPcb(const wxString& path);
+    /**
+     * @brief Loads a PCB from a file.
+     * @param filePath The path to the PCB file.
+     * @return true on success, false on failure.
+     */
+    bool loadPcbFile(const std::string& filePath);
 
-    const PcbData& GetPcbData() const { return m_pcbData; }
-
-    RoutingResult Route(const RoutingSettings& settings, const wxArrayInt& netsToRoute);
+    std::shared_ptr<PcbData> getPcbData() const;
 
 private:
-    // Placeholder for the actual GPU routing engine
-    void RunGpuRouting(const RoutingSettings& settings);
-
-    PcbData m_pcbData;
+    std::unique_ptr<PcbParser> m_parser;
+    std::shared_ptr<PcbData> m_pcbData;
 };
+
+#endif // AUTOROUTER_CORE_H

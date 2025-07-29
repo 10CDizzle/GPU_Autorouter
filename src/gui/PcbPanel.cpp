@@ -183,5 +183,8 @@ void PcbPanel::OnZoomInClicked(wxCommandEvent& event)
 {
     ZoomIn();
 }
+
+void PcbPanel::OnZoomOutClicked(wxCommandEvent& event)
+{
+    ZoomOut();
 }
-    else
