@@ -163,9 +163,6 @@ RoutingResult AutorouterCore::Route(const RoutingSettings& settings, const wxArr
         const PcbPad* startPad = netPads[0];
         const PcbPad* endPad = netPads[1];
 
-        RoutingGrid grid(grid_width, grid_height, grid_resolution);
-
-        // Add all pads on the board as obstacles
         grid.AddPadObstacle(*startPad, true);
         grid.AddPadObstacle(*endPad, true);
 
@@ -190,7 +187,7 @@ RoutingResult AutorouterCore::Route(const RoutingSettings& settings, const wxArr
             }
             total_length += pathLen * grid_resolution;
         }
-                // Restore the pads as obstacles for the next net's calculation
+        // Restore the pads as obstacles for the next net's calculation
         grid.AddPadObstacle(*startPad, false);
         grid.AddPadObstacle(*endPad, false);
     }

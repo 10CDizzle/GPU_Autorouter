@@ -12,14 +12,6 @@ void PcbData::Clear()
 void PcbData::AddLine(const PcbLine& line)
 {
     m_lines.push_back(line);
-
-    // Update bounding box
-    if (m_lines.size() == 1 && m_pads.empty()) {
-        m_boundingBox.SetLeft(line.start.m_x);
-        m_boundingBox.SetTop(line.start.m_y);
-        m_boundingBox.SetRight(line.start.m_x);
-        m_boundingBox.SetBottom(line.start.m_y);
-    }
     m_boundingBox.Union(line.start);
     m_boundingBox.Union(line.end);
 }
@@ -28,20 +20,14 @@ void PcbData::AddPad(const PcbPad& pad)
 {
     m_pads.push_back(pad);
 
-    // Update bounding box based on pad's geometry
-    wxPoint2DDouble topLeft(pad.pos.m_x - pad.size.m_x / 2.0, pad.pos.m_y - pad.size.m_y / 2.0);
-    wxPoint2DDouble bottomRight(pad.pos.m_x + pad.size.m_x / 2.0, pad.pos.m_y + pad.size.m_y / 2.0);
-
-    if (m_lines.empty() && m_pads.size() == 1) {
-        m_boundingBox.SetLeft(topLeft.m_x);
-        m_boundingBox.SetTop(topLeft.m_y);
-        m_boundingBox.SetRight(bottomRight.m_x);
-        m_boundingBox.SetBottom(bottomRight.m_y);
-    }
-    else {
-        m_boundingBox.Union(topLeft);
-        m_boundingBox.Union(bottomRight);
-    }
+    // Update bounding box based on pad's geometry.
+    // wxRect2DDouble::Union handles being called on an uninitialized (default)
+    // rectangle correctly.
+    wxRect2DDouble padRect(pad.pos.m_x - pad.size.m_x / 2.0,
+                           pad.pos.m_y - pad.size.m_y / 2.0,
+                           pad.size.m_x,
+                           pad.size.m_y);
+    m_boundingBox.Union(padRect);
 }
 
 wxRect2DDouble PcbData::GetBoundingBox() const
