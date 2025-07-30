@@ -32,5 +32,5 @@ target_include_directories(AutorouterCore PUBLIC
 # The KiCadParser is an internal implementation detail.
 target_link_libraries(AutorouterCore
     PUBLIC wx::core wx::base
-    PUBLIC KiCadParser
+    PRIVATE KiCadParser
 )

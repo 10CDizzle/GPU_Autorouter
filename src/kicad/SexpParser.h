@@ -1,7 +1,7 @@
 #ifndef KICAD_SEXP_PARSER_H
 #define KICAD_SEXP_PARSER_H
 
-#include "Sexp.h"
+#include "kicad/Sexp.h"
 #include <string>
 #include <stdexcept>
 

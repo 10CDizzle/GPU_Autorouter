@@ -1,12 +1,11 @@
 #ifndef PCB_PARSER_H
 #define PCB_PARSER_H
 
-#include "kicad/KicadPcb.h"
-#include "kicad/Sexp.h"
 #include <memory>
 #include <string>
 
 class PcbData; // Forward declaration
+class KicadPcb; // Forward declaration
 
 class PcbParser {
 public:
@@ -21,11 +20,7 @@ public:
     std::shared_ptr<PcbData> parseFile(const std::string& filePath);
 
 private:
-    KicadPcb m_kicadPcb;
-
-    // Data extraction helpers
-    void extractBoardOutline(const SexpNode& rootNode, PcbData& pcbData);
-    void parseGrLine(const SexpNode& node, PcbData& pcbData);
+    std::unique_ptr<KicadPcb> m_kicadPcb;
 };
 
 #endif // PCB_PARSER_H

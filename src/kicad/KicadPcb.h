@@ -2,7 +2,7 @@
 #define KICAD_PCB_H
 
 #include <string>
-#include "Sexp.h"
+#include "kicad/Sexp.h"
 
 // Forward declarations for KiCad data structures can go here later.
 
