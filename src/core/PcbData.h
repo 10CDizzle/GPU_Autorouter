@@ -6,6 +6,7 @@
 #include <wx/string.h>
 #include <wx/geometry.h>
 
+
 struct PcbLine {
     wxPoint2DDouble start;
     wxPoint2DDouble end;
@@ -16,7 +17,7 @@ struct PcbLine {
 
 struct PcbPad {
     wxPoint2DDouble pos;
-    wxSize2DDouble size;
+    wxPoint2DDouble size;
     wxString shape; // e.g., "rect", "circle", "oval"
     double rotation = 0.0;
     wxString layer;

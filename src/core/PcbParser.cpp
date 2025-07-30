@@ -73,4 +73,20 @@ void PcbParser::parseGrLine(const SexpNode& node, PcbData& pcbData) {
                 line.width = std::stod(propList[1].getAtom());
             } else if (key == "layer" && propList.size() >= 2) {
                 line.layer = propList[1].getAtom();
-                if (line.layer == "Edge.Cuts")
+                if (line.layer == "Edge.Cuts") {
+                    onEdgeCuts = true;
+                }
+            }
+        }
+        catch (const std::invalid_argument& e) {
+            std::cerr << "Warning: Could not parse number in gr_line: " << e.what() << std::endl;
+        }
+        catch (const std::out_of_range& e) {
+            std::cerr << "Warning: Number out of range in gr_line: " << e.what() << std::endl;
+        }
+    }
+
+    if (onEdgeCuts) {
+        pcbData.AddLine(line);
+    }
+}

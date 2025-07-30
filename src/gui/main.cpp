@@ -112,14 +112,14 @@ bool MyApp::RunHeadlessTest()
     }
 
     AutorouterCore core;
-    if (!core.LoadKicadPcb(pcbFile)) {
-        wxFprintf(stderr, "Error: Failed to load PCB file '%s'.\n", pcbFile.c_str());
+    if (!core.loadPcbFile(pcbFile.ToStdString())) {
+        wxFprintf(stderr, "Error: Failed to load PCB file '%s'.\n", pcbFile.ToStdString());
         return false;
     }
 
     RoutingSettings settings;
     wxArrayInt netsToRoute; // Route all nets for now
-    const auto& allNets = core.GetPcbData().GetNets();
+    const auto& allNets = core.getPcbData()->GetNets();
     for (size_t i = 0; i < allNets.size(); ++i) {
         netsToRoute.Add(i);
     }
@@ -223,9 +223,9 @@ void MyFrame::OnOpenKicad(wxCommandEvent& event)
     if (openFileDialog.ShowModal() == wxID_CANCEL)
         return; // The user cancelled
 
-    if (m_core->LoadKicadPcb(openFileDialog.GetPath()))
+    if (m_core->loadPcbFile(openFileDialog.GetPath().ToStdString()))
     {
-        m_canvas->SetPcbData(&m_core->GetPcbData());
+        m_canvas->SetPcbData(m_core->getPcbData().get());
 
         // A new design is loaded, so any previous session file path is invalid
         m_sessionFilePath.clear();
@@ -311,7 +311,7 @@ void MyFrame::OnToggleNightMode(wxCommandEvent& event)
 
 void MyFrame::OnAutorouter(wxCommandEvent& event)
 {
-    const auto& nets = m_core->GetPcbData().GetNets();
+    const auto& nets = m_core->getPcbData()->GetNets();
     if (nets.empty())
     {
         wxMessageBox("Please open a KiCad PCB file with defined nets first.", "No Nets Loaded", wxOK | wxICON_INFORMATION, this);

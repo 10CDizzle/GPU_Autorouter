@@ -4,6 +4,19 @@
 #include <wx/scrolwin.h>
 #include "../core/PcbData.h" // Include the refactored data header
 
+// Structure to hold session state when loading/saving
+struct SessionState
+{
+    bool loaded = false;
+    double scale = 1.0;
+    bool isNightMode = false;
+};
+
+// Define some constants for pad shapes to avoid magic strings in the drawing code.
+#define SHAPE_RECT "rect"
+#define SHAPE_CIRCLE "circle"
+#define SHAPE_OVAL "oval"
+
 class PcbCanvas : public wxScrolled<wxPanel>
 {
 public:

@@ -52,9 +52,9 @@ TEST_CASE("PCB File Loading and Routing Metrics", "[core][filesystem]")
         SECTION(testName.ToStdString())
         {
             AutorouterCore core;
-            REQUIRE(core.LoadKicadPcb(pcbFile));
+            REQUIRE(core.loadPcbFile(pcbFile));
 
-            const auto& allNets = core.GetPcbData().GetNets();
+            const auto& allNets = core.getPcbData()->GetNets();
             if (allNets.empty()) {
                 // It's valid for a PCB to have no nets. We can't test routing,
                 // but successfully loading it is a pass.

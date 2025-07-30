@@ -15,6 +15,7 @@ add_executable(AutorouterTests
 # Link our test against the core logic, wxWidgets, and Catch2
 target_link_libraries(AutorouterTests PRIVATE
     AutorouterCore
+    KiCadParser
     wx::core
     wx::base
     Catch2::Catch2WithMain

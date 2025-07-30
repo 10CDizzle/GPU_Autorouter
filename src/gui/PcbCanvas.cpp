@@ -165,15 +165,14 @@ void PcbCanvas::OnDraw(wxDC& dc)
             double w = pad.size.m_x * pcb_scale;
             double h = pad.size.m_y * pcb_scale;
 
-            switch (pad.shape)
+            // C++ switch statements do not work on strings. Use if-else if instead.
+            if (pad.shape == "rect")
             {
-            case SHAPE_RECT:
                 dc.DrawRectangle(wxPoint(x, y), wxSize(w, h));
-                break;
-            case SHAPE_CIRCLE: // fall-through
-            case SHAPE_OVAL:
+            }
+            else if (pad.shape == "circle" || pad.shape == "oval")
+            {
                 dc.DrawEllipse(wxPoint(x, y), wxSize(w, h));
-                break;
             }
         }
         dc.SetBrush(oldBrush);

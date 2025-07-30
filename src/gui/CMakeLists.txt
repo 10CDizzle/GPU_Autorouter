@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(PCBAutorouterGUI)
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -17,6 +15,8 @@ set_target_properties(PCBAutorouterApp PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CM
 # This automatically handles include paths.
 target_link_libraries(PCBAutorouterApp PRIVATE
     AutorouterCore
+    # Explicitly link against the parser library to resolve LNK1104
+    KiCadParser
     wx::core
     wx::base
 )
