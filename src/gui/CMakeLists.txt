@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(PCBAutorouterApp WIN32
     main.cpp
     PcbCanvas.cpp
+    LayerColors.cpp
     AutorouterDialog.cpp   
 )
 

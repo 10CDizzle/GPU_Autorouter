@@ -1,12 +1,14 @@
 #include "PcbCanvas.h"
 #include <wx/dcbuffer.h> // For wxBufferedPaintDC
 #include <wx/textfile.h> // For wxTextFile
+#include <wx/settings.h> // For wxSystemSettings
 #include "../core/AutorouterCore.h"
 
 PcbCanvas::PcbCanvas(wxWindow* parent)
     : wxScrolled<wxPanel>(parent, wxID_ANY)
 {
     m_pcbDataPtr = nullptr;
+    m_isNightMode = false;
     SetBackgroundStyle(wxBG_STYLE_PAINT); // Use custom paint handler to reduce flicker.
 
     SetNightMode(false); // Initialize with light mode colors
@@ -105,6 +107,7 @@ void PcbCanvas::ApplySessionState(const SessionState& state)
 
 void PcbCanvas::SetNightMode(bool nightMode)
 {
+    m_isNightMode = nightMode;
     if (nightMode)
     {
         m_bgColour = wxColour(50, 50, 50);
@@ -139,7 +142,7 @@ void PcbCanvas::OnDraw(wxDC& dc)
 
     const double pcb_scale = 10.0; // Scale factor: 10 pixels per mm
 
-    if (!m_pcbDataPtr || (m_pcbDataPtr->GetLines().empty() && m_pcbDataPtr->GetPads().empty()))
+    if (!m_pcbDataPtr || (m_pcbDataPtr->GetLines().empty() && m_pcbDataPtr->GetPads().empty() && m_pcbDataPtr->GetVias().empty()))
     {
         // Draw placeholder text if no file is loaded
         dc.SetFont(*wxNORMAL_FONT);
@@ -148,16 +151,50 @@ void PcbCanvas::OnDraw(wxDC& dc)
     }
     else
     {
-        // --- Draw Pads ---
         wxBrush oldBrush = dc.GetBrush();
         wxPen oldPen = dc.GetPen();
-        dc.SetPen(*wxTRANSPARENT_PEN); // No outline for pads
 
+        // --- 1. Draw Zones (Copper Pours) ---
+        dc.SetPen(*wxTRANSPARENT_PEN); // No outline for zones
+        for (const auto& zone : m_pcbDataPtr->GetZones()) {
+            wxColour zoneColour = m_layerColors.GetColour(zone.layer, m_isNightMode);
+            // Make it semi-transparent for a "pour" look
+            wxColour pourColour(zoneColour.Red(), zoneColour.Green(), zoneColour.Blue(), 80);
+            dc.SetBrush(wxBrush(pourColour, wxBRUSHSTYLE_SOLID));
+
+            std::vector<wxPoint> points;
+            points.reserve(zone.polygon.size());
+            for (const auto& pt : zone.polygon) {
+                points.emplace_back(pt.m_x * pcb_scale, pt.m_y * pcb_scale);
+            }
+            if (!points.empty()) {
+                dc.DrawPolygon(points.size(), points.data());
+            }
+        }
+
+        // --- 2. Draw Traces (Copper Segments) ---
+        for (const auto& line : m_pcbDataPtr->GetLines())
+        {
+            // Skip board outline for now, we'll draw it last
+            if (line.layer == "Edge.Cuts") continue;
+            dc.SetPen(wxPen(m_layerColors.GetColour(line.layer, m_isNightMode), line.width * pcb_scale, wxPENSTYLE_SOLID));
+            dc.DrawLine(line.start.m_x * pcb_scale, line.start.m_y * pcb_scale, line.end.m_x * pcb_scale, line.end.m_y * pcb_scale);
+        }
+
+        // --- 3. Draw Pads ---
+        dc.SetPen(*wxTRANSPARENT_PEN); // No outline for pads
         for (const auto& pad : m_pcbDataPtr->GetPads())
         {
-            if (pad.layer == "F.Cu") dc.SetBrush(wxBrush(wxColour(200, 0, 0))); // Red for top copper
-            else if (pad.layer == "B.Cu") dc.SetBrush(wxBrush(wxColour(0, 0, 200))); // Blue for bottom copper
-            else continue;
+            // Handle non-plated through-holes
+            if (pad.shape == "np_thru_hole") {
+                 double drill_size = pad.size.m_x; // For npth, size is usually the drill size
+                 dc.SetBrush(*wxBLACK_BRUSH);
+                 dc.SetPen(wxPen(m_layerColors.GetColour("Hole", m_isNightMode), 1));
+                 dc.DrawCircle(pad.pos.m_x * pcb_scale, pad.pos.m_y * pcb_scale, (drill_size / 2.0) * pcb_scale);
+                 continue;
+            }
+
+            dc.SetBrush(wxBrush(m_layerColors.GetColour(pad.layer, m_isNightMode)));
 
             // KiCad 'at' is center, wxWidgets drawing is top-left. Convert and scale.
             double x = (pad.pos.m_x - pad.size.m_x / 2.0) * pcb_scale;
@@ -165,7 +202,6 @@ void PcbCanvas::OnDraw(wxDC& dc)
             double w = pad.size.m_x * pcb_scale;
             double h = pad.size.m_y * pcb_scale;
 
-            // C++ switch statements do not work on strings. Use if-else if instead.
             if (pad.shape == "rect")
             {
                 dc.DrawRectangle(wxPoint(x, y), wxSize(w, h));
@@ -175,15 +211,24 @@ void PcbCanvas::OnDraw(wxDC& dc)
                 dc.DrawEllipse(wxPoint(x, y), wxSize(w, h));
             }
         }
-        dc.SetBrush(oldBrush);
-        dc.SetPen(oldPen);
 
-        // Draw the PCB outline
-        dc.SetPen(wxPen(wxColour(255, 255, 0), 2 / m_scale)); // Bright yellow for outline, scale pen width
+        // --- 4. Draw Vias (on top of pads/traces) ---
+        dc.SetPen(*wxTRANSPARENT_PEN);
+        dc.SetBrush(wxBrush(m_layerColors.GetColour("Via", m_isNightMode)));
+        for (const auto& via : m_pcbDataPtr->GetVias()) {
+            dc.DrawCircle(via.pos.m_x * pcb_scale, via.pos.m_y * pcb_scale, (via.size / 2.0) * pcb_scale);
+        }
+
+        // --- 5. Draw the PCB outline (last, so it's on top of everything) ---
+        dc.SetPen(wxPen(m_layerColors.GetColour("Edge.Cuts", m_isNightMode), 2 / m_scale)); // Bright yellow for outline, scale pen width
         for (const auto& line : m_pcbDataPtr->GetLines())
         {
-            dc.DrawLine(line.start.m_x * pcb_scale, line.start.m_y * pcb_scale, line.end.m_x * pcb_scale, line.end.m_y * pcb_scale);
+            if (line.layer == "Edge.Cuts") {
+                dc.DrawLine(line.start.m_x * pcb_scale, line.start.m_y * pcb_scale, line.end.m_x * pcb_scale, line.end.m_y * pcb_scale);
+            }
         }
+        dc.SetBrush(oldBrush);
+        dc.SetPen(oldPen);
     }
 }
 

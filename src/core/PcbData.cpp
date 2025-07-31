@@ -5,6 +5,8 @@ void PcbData::Clear()
 {
     m_lines.clear();
     m_pads.clear();
+    m_vias.clear();
+    m_zones.clear();
     m_nets.clear();
     m_boundingBox = wxRect2DDouble();
 }
@@ -29,6 +31,24 @@ void PcbData::AddPad(const PcbPad& pad)
                            pad.size.m_y);
     m_boundingBox.Union(padRect);
 }
+
+void PcbData::AddVia(const PcbVia& via)
+{
+    m_vias.push_back(via);
+    m_boundingBox.Union(wxRect2DDouble(via.pos.m_x - via.size / 2.0,
+                                       via.pos.m_y - via.size / 2.0,
+                                       via.size, via.size));
+}
+
+void PcbData::AddZone(const PcbZone& zone)
+{
+    m_zones.push_back(zone);
+    // Update bounding box from polygon points
+    for (const auto& pt : zone.polygon) {
+        m_boundingBox.Union(pt);
+    }
+}
+
 
 wxRect2DDouble PcbData::GetBoundingBox() const
 {

@@ -106,6 +106,85 @@ namespace {
             }
         }
     }
+
+void extractSegments(const SexpNode& root, PcbData& pcbData) {
+    if (!root.isList()) return;
+    for (const auto& node : root.getList()) {
+        if (node.isList() && !node.getList().empty() && node.getList()[0].getAtom() == "segment") {
+            const SexpNode* layerNode = findNode(node, "layer");
+            if (layerNode && layerNode->getList().size() > 1) {
+                PcbLine segment;
+                const SexpNode* startNode = findNode(node, "start");
+                const SexpNode* endNode = findNode(node, "end");
+                const SexpNode* widthNode = findNode(node, "width");
+                const SexpNode* netNode = findNode(node, "net");
+
+                if (parsePoint(startNode, segment.start) &&
+                    parsePoint(endNode, segment.end) &&
+                    widthNode && widthNode->getList().size() > 1 &&
+                    netNode && netNode->getList().size() > 1) {
+                    segment.width = std::stod(widthNode->getList()[1].getAtom());
+                    segment.layer = layerNode->getList()[1].getAtom();
+                    segment.netId = std::stoi(netNode->getList()[1].getAtom());
+                    pcbData.AddLine(segment);
+                }
+            }
+        }
+    }
+}
+
+void extractVias(const SexpNode& root, PcbData& pcbData) {
+    if (!root.isList()) return;
+    for (const auto& node : root.getList()) {
+        if (node.isList() && !node.getList().empty() && node.getList()[0].getAtom() == "via") {
+            PcbVia via;
+            const SexpNode* atNode = findNode(node, "at");
+            const SexpNode* sizeNode = findNode(node, "size");
+            const SexpNode* drillNode = findNode(node, "drill");
+            const SexpNode* layersNode = findNode(node, "layers");
+            const SexpNode* netNode = findNode(node, "net");
+
+            if (parsePoint(atNode, via.pos) &&
+                sizeNode && sizeNode->getList().size() > 1 &&
+                drillNode && drillNode->getList().size() > 1 &&
+                layersNode && layersNode->getList().size() > 2 &&
+                netNode && netNode->getList().size() > 1) {
+                via.size = std::stod(sizeNode->getList()[1].getAtom());
+                via.drill = std::stod(drillNode->getList()[1].getAtom());
+                via.fromLayer = layersNode->getList()[1].getAtom();
+                via.toLayer = layersNode->getList()[2].getAtom();
+                via.netId = std::stoi(netNode->getList()[1].getAtom());
+                pcbData.AddVia(via);
+            }
+        }
+    }
+}
+
+void extractZones(const SexpNode& root, PcbData& pcbData) {
+    if (!root.isList()) return;
+    for (const auto& node : root.getList()) {
+        if (node.isList() && !node.getList().empty() && node.getList()[0].getAtom() == "zone") {
+            PcbZone zone;
+            const SexpNode* layerNode = findNode(node, "layer");
+            const SexpNode* netNode = findNode(node, "net");
+            const SexpNode* polygonNode = findNode(node, "polygon");
+
+            if (layerNode && layerNode->getList().size() > 1 && netNode && netNode->getList().size() > 1 && polygonNode) {
+                zone.layer = layerNode->getList()[1].getAtom();
+                zone.netId = std::stoi(netNode->getList()[1].getAtom());
+                const SexpNode* ptsNode = findNode(*polygonNode, "pts");
+                if (ptsNode && ptsNode->isList()) {
+                    for (const auto& ptNode : ptsNode->getList()) {
+                        if (ptNode.isList() && !ptNode.getList().empty() && ptNode.getList()[0].getAtom() == "xy" && ptNode.getList().size() > 2) {
+                            zone.polygon.emplace_back(std::stod(ptNode.getList()[1].getAtom()), std::stod(ptNode.getList()[2].getAtom()));
+                        }
+                    }
+                }
+                if (!zone.polygon.empty()) pcbData.AddZone(zone);
+            }
+        }
+    }
+}
 } // anonymous namespace
 
 std::shared_ptr<PcbData> PcbParser::parseFile(const std::string& filePath) {
@@ -124,9 +203,12 @@ std::shared_ptr<PcbData> PcbParser::parseFile(const std::string& filePath) {
     // --- Extract Data ---
     extractNets(root, *pcbData);
     extractBoardOutline(root, *pcbData);
+    extractSegments(root, *pcbData);
     extractPads(root, *pcbData);
+    extractVias(root, *pcbData);
+    extractZones(root, *pcbData);
 
-    std::cout << "PcbData object populated with " << pcbData->GetLines().size() << " outline segments and " << pcbData->GetPads().size() << " pads." << std::endl;
+    std::cout << "PcbData populated: " << pcbData->GetLines().size() << " lines/traces, " << pcbData->GetPads().size() << " pads, " << pcbData->GetVias().size() << " vias, " << pcbData->GetZones().size() << " zones." << std::endl;
 
     return pcbData;
 }

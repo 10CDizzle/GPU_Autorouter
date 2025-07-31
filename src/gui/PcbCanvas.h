@@ -2,6 +2,7 @@
 
 #include <wx/wx.h>
 #include <wx/scrolwin.h>
+#include "LayerColors.h"
 #include "../core/PcbData.h" // Include the refactored data header
 
 // Structure to hold session state when loading/saving
@@ -55,4 +56,6 @@ private:
     wxColour m_bgColour;
     wxColour m_gridColour;
     wxColour m_textColour;
+    LayerColors m_layerColors;
+    bool m_isNightMode;
 };
