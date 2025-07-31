@@ -56,6 +56,7 @@ public:
     const std::vector<PcbVia>& GetVias() const { return m_vias; }
     const std::vector<PcbZone>& GetZones() const { return m_zones; }
     const std::vector<wxString>& GetNets() const { return m_nets; }
+    std::vector<wxString> GetUniqueLayerNames() const;
     wxRect2DDouble GetBoundingBox() const;
 
     int GetNetIdByName(const wxString& netName) const;

@@ -7,6 +7,7 @@ add_executable(PCBAutorouterApp WIN32
     main.cpp
     PcbCanvas.cpp
     LayerColors.cpp
+    LayerControlPanel.cpp
     AutorouterDialog.cpp   
 )
 

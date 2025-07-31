@@ -157,6 +157,7 @@ void PcbCanvas::OnDraw(wxDC& dc)
         // --- 1. Draw Zones (Copper Pours) ---
         dc.SetPen(*wxTRANSPARENT_PEN); // No outline for zones
         for (const auto& zone : m_pcbDataPtr->GetZones()) {
+            if (!m_layerColors.IsVisible(zone.layer)) continue;
             wxColour zoneColour = m_layerColors.GetColour(zone.layer, m_isNightMode);
             // Make it semi-transparent for a "pour" look
             wxColour pourColour(zoneColour.Red(), zoneColour.Green(), zoneColour.Blue(), 80);
@@ -176,7 +177,7 @@ void PcbCanvas::OnDraw(wxDC& dc)
         for (const auto& line : m_pcbDataPtr->GetLines())
         {
             // Skip board outline for now, we'll draw it last
-            if (line.layer == "Edge.Cuts") continue;
+            if (!m_layerColors.IsVisible(line.layer) || line.layer == "Edge.Cuts") continue;
             dc.SetPen(wxPen(m_layerColors.GetColour(line.layer, m_isNightMode), line.width * pcb_scale, wxPENSTYLE_SOLID));
             dc.DrawLine(line.start.m_x * pcb_scale, line.start.m_y * pcb_scale, line.end.m_x * pcb_scale, line.end.m_y * pcb_scale);
         }
@@ -187,7 +188,8 @@ void PcbCanvas::OnDraw(wxDC& dc)
         {
             // Handle non-plated through-holes
             if (pad.shape == "np_thru_hole") {
-                 double drill_size = pad.size.m_x; // For npth, size is usually the drill size
+                 if (!m_layerColors.IsVisible("Hole")) continue;
+                 double drill_size = pad.size.m_x; // For npth, size is the drill size
                  dc.SetBrush(*wxBLACK_BRUSH);
                  dc.SetPen(wxPen(m_layerColors.GetColour("Hole", m_isNightMode), 1));
                  dc.DrawCircle(pad.pos.m_x * pcb_scale, pad.pos.m_y * pcb_scale, (drill_size / 2.0) * pcb_scale);
@@ -195,6 +197,7 @@ void PcbCanvas::OnDraw(wxDC& dc)
             }
 
             dc.SetBrush(wxBrush(m_layerColors.GetColour(pad.layer, m_isNightMode)));
+            if (!m_layerColors.IsVisible(pad.layer)) continue;
 
             // KiCad 'at' is center, wxWidgets drawing is top-left. Convert and scale.
             double x = (pad.pos.m_x - pad.size.m_x / 2.0) * pcb_scale;
@@ -215,15 +218,17 @@ void PcbCanvas::OnDraw(wxDC& dc)
         // --- 4. Draw Vias (on top of pads/traces) ---
         dc.SetPen(*wxTRANSPARENT_PEN);
         dc.SetBrush(wxBrush(m_layerColors.GetColour("Via", m_isNightMode)));
-        for (const auto& via : m_pcbDataPtr->GetVias()) {
-            dc.DrawCircle(via.pos.m_x * pcb_scale, via.pos.m_y * pcb_scale, (via.size / 2.0) * pcb_scale);
+        if (m_layerColors.IsVisible("Via")) {
+            for (const auto& via : m_pcbDataPtr->GetVias()) {
+                dc.DrawCircle(via.pos.m_x * pcb_scale, via.pos.m_y * pcb_scale, (via.size / 2.0) * pcb_scale);
+            }
         }
 
         // --- 5. Draw the PCB outline (last, so it's on top of everything) ---
         dc.SetPen(wxPen(m_layerColors.GetColour("Edge.Cuts", m_isNightMode), 2 / m_scale)); // Bright yellow for outline, scale pen width
         for (const auto& line : m_pcbDataPtr->GetLines())
         {
-            if (line.layer == "Edge.Cuts") {
+            if (line.layer == "Edge.Cuts" && m_layerColors.IsVisible("Edge.Cuts")) {
                 dc.DrawLine(line.start.m_x * pcb_scale, line.start.m_y * pcb_scale, line.end.m_x * pcb_scale, line.end.m_y * pcb_scale);
             }
         }

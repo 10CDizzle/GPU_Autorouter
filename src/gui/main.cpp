@@ -6,6 +6,7 @@
 #include <wx/aboutdlg.h>
 #include <wx/cmdline.h>
 
+#include "LayerControlPanel.h"
 #include "PcbCanvas.h" // Includes PcbData.h transitively
 #include "AutorouterDialog.h"
 #include "../core/AutorouterCore.h"
@@ -15,7 +16,8 @@ enum
 {
     ID_ToggleNightMode = wxID_HIGHEST + 1,
     ID_OpenRoutingSession,
-    ID_Autorouter
+    ID_Autorouter,
+    ID_LayerVisibilityChanged
 };
 
 // Define a new application type, derived from wxApp
@@ -39,6 +41,7 @@ private:
     // A pointer to our custom drawing canvas
     std::unique_ptr<AutorouterCore> m_core;
     PcbCanvas* m_canvas;
+    LayerControlPanel* m_layerPanel;
     bool m_isNightMode;
 
     // Path for the current session file
@@ -55,6 +58,7 @@ private:
     void OnToggleNightMode(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
     void OnAutorouter(wxCommandEvent& event);
+    void OnLayerVisibilityChanged(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
 
 public:
@@ -188,12 +192,16 @@ MyFrame::MyFrame()
 
     // --- 3. Create the Central Drawing Area ---
     // This panel will eventually be a custom widget for displaying the PCB.
+    m_layerPanel = new LayerControlPanel(this);
     m_canvas = new PcbCanvas(this);
 
     // --- 4. Use a Sizer to Arrange Components ---
     // The sizer will manage the layout, allowing the drawingCanvas to expand
     // and fill the available space in the frame.
-    wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
+    wxBoxSizer* sizer = new wxBoxSizer(wxHORIZONTAL);
+    // Add the layer panel with a fixed initial width, but allow it to grow vertically
+    sizer->Add(m_layerPanel, 0, wxEXPAND | wxALL, 5);
+    // The canvas is the expanding part
     sizer->Add(m_canvas, 1, wxEXPAND); // The '1' makes it the expanding "stretchable" part
 
     this->SetSizerAndFit(sizer);
@@ -210,6 +218,7 @@ MyFrame::MyFrame()
     Bind(wxEVT_MENU, &MyFrame::OnSaveAs, this, wxID_SAVEAS);
     Bind(wxEVT_MENU, &MyFrame::OnToggleNightMode, this, ID_ToggleNightMode);
     Bind(wxEVT_MENU, &MyFrame::OnAutorouter, this, ID_Autorouter);
+    Bind(EVT_LAYER_VISIBILITY_CHANGED, &MyFrame::OnLayerVisibilityChanged, this);
     Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
     Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
 }
@@ -226,6 +235,11 @@ void MyFrame::OnOpenKicad(wxCommandEvent& event)
     if (m_core->loadPcbFile(openFileDialog.GetPath().ToStdString()))
     {
         m_canvas->SetPcbData(m_core->getPcbData().get());
+
+        // Populate the layer control panel
+        auto layerNames = m_core->getPcbData()->GetUniqueLayerNames();
+        m_layerPanel->PopulateLayers(layerNames);
+        m_canvas->GetLayerColors().PopulateFromLayers(layerNames);
 
         // A new design is loaded, so any previous session file path is invalid
         m_sessionFilePath.clear();
@@ -334,6 +348,15 @@ void MyFrame::OnAutorouter(wxCommandEvent& event)
         m_core->Route(settings, selections); // In a real app, this should be in a thread
         SetStatusText("Routing complete.", 0);
     }
+}
+
+void MyFrame::OnLayerVisibilityChanged(wxCommandEvent& event)
+{
+    wxString layerName = event.GetString();
+    bool isVisible = (event.GetInt() != 0);
+
+    m_canvas->GetLayerColors().SetVisibility(layerName, isVisible);
+    m_canvas->Refresh();
 }
 
 void MyFrame::SetNightMode(bool nightMode)

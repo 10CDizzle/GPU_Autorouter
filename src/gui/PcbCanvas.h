@@ -31,6 +31,7 @@ public:
 
     void SetPcbData(const PcbData* data);
     void UpdateVirtualSize();
+    LayerColors& GetLayerColors() { return m_layerColors; }
 
 private:
     void OnPaint(wxPaintEvent& event);

@@ -1,5 +1,6 @@
 #include "PcbData.h"
 #include <algorithm>
+#include <set>
 
 void PcbData::Clear()
 {
@@ -49,6 +50,33 @@ void PcbData::AddZone(const PcbZone& zone)
     }
 }
 
+std::vector<wxString> PcbData::GetUniqueLayerNames() const
+{
+    std::set<wxString> layerSet;
+
+    for (const auto& line : m_lines) {
+        layerSet.insert(line.layer);
+    }
+    for (const auto& pad : m_pads) {
+        // Special handling for non-copper layers
+        if (pad.shape == "np_thru_hole") {
+            layerSet.insert("Hole");
+        } else {
+            layerSet.insert(pad.layer);
+        }
+    }
+    for (const auto& via : m_vias) {
+        // Vias are drawn as a single type for now
+        layerSet.insert("Via");
+    }
+    for (const auto& zone : m_zones) {
+        layerSet.insert(zone.layer);
+    }
+
+    std::vector<wxString> uniqueLayers(layerSet.begin(), layerSet.end());
+    std::sort(uniqueLayers.begin(), uniqueLayers.end());
+    return uniqueLayers;
+}
 
 wxRect2DDouble PcbData::GetBoundingBox() const
 {
