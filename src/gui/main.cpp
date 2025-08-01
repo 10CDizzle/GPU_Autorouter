@@ -5,6 +5,7 @@
 #endif
 #include <wx/aboutdlg.h>
 #include <wx/cmdline.h>
+#include <wx/artprov.h>
 
 #include "LayerControlPanel.h"
 #include "PcbCanvas.h" // Includes PcbData.h transitively
@@ -17,7 +18,9 @@ enum
     ID_ToggleNightMode = wxID_HIGHEST + 1,
     ID_OpenRoutingSession,
     ID_Autorouter,
-    ID_LayerVisibilityChanged
+    ID_ZoomToArea,
+    ID_LayerVisibilityChanged,
+    ID_ZoomAreaComplete
 };
 
 // Define a new application type, derived from wxApp
@@ -41,6 +44,7 @@ private:
     // A pointer to our custom drawing canvas
     std::unique_ptr<AutorouterCore> m_core;
     PcbCanvas* m_canvas;
+    wxToolBar* m_toolBar;
     LayerControlPanel* m_layerPanel;
     bool m_isNightMode;
 
@@ -58,6 +62,10 @@ private:
     void OnToggleNightMode(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
     void OnAutorouter(wxCommandEvent& event);
+    void OnZoomIn(wxCommandEvent& event);
+    void OnZoomOut(wxCommandEvent& event);
+    void OnZoomToFit(wxCommandEvent& event);
+    void OnZoomToArea(wxCommandEvent& event);
     void OnLayerVisibilityChanged(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
 
@@ -183,6 +191,16 @@ MyFrame::MyFrame()
 
     SetMenuBar(menuBar);
 
+    // --- Create Toolbar ---
+    m_toolBar = CreateToolBar(wxTB_HORIZONTAL | wxTB_TEXT);
+    m_toolBar->AddTool(wxID_ZOOM_IN, "Zoom In", wxArtProvider::GetBitmap(wxART_PLUS, wxART_TOOLBAR), "Zoom In");
+    m_toolBar->AddTool(wxID_ZOOM_OUT, "Zoom Out", wxArtProvider::GetBitmap(wxART_MINUS, wxART_TOOLBAR), "Zoom Out");
+    m_toolBar->AddTool(wxID_ZOOM_FIT, "Zoom To Fit", wxArtProvider::GetBitmap(wxART_FULL_SCREEN, wxART_TOOLBAR), "Zoom To Fit");
+    m_toolBar->AddSeparator();
+    m_toolBar->AddTool(ID_ZoomToArea, "Zoom To Area", wxArtProvider::GetBitmap(wxART_FIND, wxART_TOOLBAR), "Zoom To Area", wxITEM_TOGGLE);
+    m_toolBar->Realize();
+
+
     m_saveMenuItem->Enable(false);
     m_saveAsMenuItem->Enable(false);
 
@@ -218,7 +236,12 @@ MyFrame::MyFrame()
     Bind(wxEVT_MENU, &MyFrame::OnSaveAs, this, wxID_SAVEAS);
     Bind(wxEVT_MENU, &MyFrame::OnToggleNightMode, this, ID_ToggleNightMode);
     Bind(wxEVT_MENU, &MyFrame::OnAutorouter, this, ID_Autorouter);
+    Bind(wxEVT_TOOL, &MyFrame::OnZoomIn, this, wxID_ZOOM_IN);
+    Bind(wxEVT_TOOL, &MyFrame::OnZoomOut, this, wxID_ZOOM_OUT);
+    Bind(wxEVT_TOOL, &MyFrame::OnZoomToFit, this, wxID_ZOOM_FIT);
+    Bind(wxEVT_TOOL, &MyFrame::OnZoomToArea, this, ID_ZoomToArea);
     Bind(EVT_LAYER_VISIBILITY_CHANGED, &MyFrame::OnLayerVisibilityChanged, this);
+    Bind(EVT_ZOOM_AREA_COMPLETE, [this](wxCommandEvent&) { m_toolBar->ToggleTool(ID_ZoomToArea, false); });
     Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
     Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
 }
@@ -235,6 +258,7 @@ void MyFrame::OnOpenKicad(wxCommandEvent& event)
     if (m_core->loadPcbFile(openFileDialog.GetPath().ToStdString()))
     {
         m_canvas->SetPcbData(m_core->getPcbData().get());
+        m_canvas->ZoomToFit();
 
         // Populate the layer control panel
         auto layerNames = m_core->getPcbData()->GetUniqueLayerNames();
@@ -348,6 +372,26 @@ void MyFrame::OnAutorouter(wxCommandEvent& event)
         m_core->Route(settings, selections); // In a real app, this should be in a thread
         SetStatusText("Routing complete.", 0);
     }
+}
+
+void MyFrame::OnZoomIn(wxCommandEvent& event)
+{
+    m_canvas->ZoomIn();
+}
+
+void MyFrame::OnZoomOut(wxCommandEvent& event)
+{
+    m_canvas->ZoomOut();
+}
+
+void MyFrame::OnZoomToFit(wxCommandEvent& event)
+{
+    m_canvas->ZoomToFit();
+}
+
+void MyFrame::OnZoomToArea(wxCommandEvent& event)
+{
+    m_canvas->EnterZoomAreaMode();
 }
 
 void MyFrame::OnLayerVisibilityChanged(wxCommandEvent& event)

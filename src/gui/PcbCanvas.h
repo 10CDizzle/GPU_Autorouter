@@ -18,6 +18,9 @@ struct SessionState
 #define SHAPE_CIRCLE "circle"
 #define SHAPE_OVAL "oval"
 
+// Define a custom event for when the zoom-to-area action is complete.
+wxDECLARE_EVENT(EVT_ZOOM_AREA_COMPLETE, wxCommandEvent);
+
 class PcbCanvas : public wxScrolled<wxPanel>
 {
 public:
@@ -31,6 +34,10 @@ public:
 
     void SetPcbData(const PcbData* data);
     void UpdateVirtualSize();
+    void ZoomIn();
+    void ZoomOut();
+    void ZoomToFit();
+    void EnterZoomAreaMode();
     LayerColors& GetLayerColors() { return m_layerColors; }
 
 private:
@@ -59,4 +66,9 @@ private:
     wxColour m_textColour;
     LayerColors m_layerColors;
     bool m_isNightMode;
+
+    // For zoom-to-area
+    bool m_isZoomingArea;
+    wxPoint m_zoomAreaStart;
+    wxRect m_zoomAreaRect;
 };

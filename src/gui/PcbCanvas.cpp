@@ -4,11 +4,15 @@
 #include <wx/settings.h> // For wxSystemSettings
 #include "../core/AutorouterCore.h"
 
+// Define the custom event type
+wxDEFINE_EVENT(EVT_ZOOM_AREA_COMPLETE, wxCommandEvent);
+
 PcbCanvas::PcbCanvas(wxWindow* parent)
     : wxScrolled<wxPanel>(parent, wxID_ANY)
 {
     m_pcbDataPtr = nullptr;
     m_isNightMode = false;
+    m_isZoomingArea = false;
     SetBackgroundStyle(wxBG_STYLE_PAINT); // Use custom paint handler to reduce flicker.
 
     SetNightMode(false); // Initialize with light mode colors
@@ -124,10 +128,62 @@ void PcbCanvas::SetNightMode(bool nightMode)
     Refresh();
 }
 
+void PcbCanvas::ZoomIn()
+{
+    double zoomFactor = 1.25;
+    wxSize clientSize = GetClientSize();
+    // Zoom towards the center of the current view
+    wxPoint mousePos = wxPoint(clientSize.x / 2, clientSize.y / 2);
+
+    wxPoint logicalPos = CalcUnscrolledPosition(mousePos);
+    wxPoint viewStart = GetViewStart();
+    double oldScale = m_scale;
+    m_scale *= zoomFactor;
+
+    wxPoint newViewStart;
+    newViewStart.x = logicalPos.x - (mousePos.x / m_scale);
+    newViewStart.y = logicalPos.y - (mousePos.y / m_scale);
+
+    Scroll(newViewStart);
+    Refresh(false);
+}
+
+void PcbCanvas::ZoomOut()
+{
+    double zoomFactor = 1.25;
+    wxSize clientSize = GetClientSize();
+    wxPoint mousePos = wxPoint(clientSize.x / 2, clientSize.y / 2);
+
+    wxPoint logicalPos = CalcUnscrolledPosition(mousePos);
+    wxPoint viewStart = GetViewStart();
+    double oldScale = m_scale;
+    m_scale /= zoomFactor;
+
+    wxPoint newViewStart;
+    newViewStart.x = logicalPos.x - (mousePos.x / m_scale);
+    newViewStart.y = logicalPos.y - (mousePos.y / m_scale);
+
+    Scroll(newViewStart);
+    Refresh(false);
+}
+
+void PcbCanvas::EnterZoomAreaMode()
+{
+    m_isZoomingArea = true;
+    SetCursor(wxCursor(wxCURSOR_CROSS));
+}
+
 void PcbCanvas::OnPaint(wxPaintEvent& event)
 {
     // Use a buffered DC to reduce flicker, especially on Windows.
     wxBufferedPaintDC dc(this);
+
+    // Explicitly clear the buffer with our background color first.
+    // This prevents "ghosting" when panning or zooming because the
+    // buffer is not automatically cleared on all platforms.
+    dc.SetBackground(wxBrush(m_bgColour));
+    dc.Clear();
+
     OnDraw(dc);
 }
 
@@ -234,6 +290,22 @@ void PcbCanvas::OnDraw(wxDC& dc)
         }
         dc.SetBrush(oldBrush);
         dc.SetPen(oldPen);
+
+        // --- 6. Draw Zoom-to-Area rubber band overlay ---
+        if (m_isZoomingArea && (m_zoomAreaRect.width != 0 || m_zoomAreaRect.height != 0))
+        {
+            // The rubber band rect is in screen coordinates. We need to draw it on the DC
+            // which is scrolled and scaled. We can convert the screen rect to logical coordinates.
+            wxPoint scroll = GetViewStart();
+            wxRect logicalRect;
+            logicalRect.x = (m_zoomAreaRect.x + scroll.x) / m_scale;
+            logicalRect.y = (m_zoomAreaRect.y + scroll.y) / m_scale;
+            logicalRect.width = m_zoomAreaRect.width / m_scale;
+            logicalRect.height = m_zoomAreaRect.height / m_scale;
+
+            dc.SetPen(wxPen(*wxWHITE, 2 / m_scale, wxPENSTYLE_DOT));
+            dc.DrawRectangle(logicalRect);
+        }
     }
 }
 
@@ -241,6 +313,32 @@ void PcbCanvas::SetPcbData(const PcbData* data)
 {
     m_pcbDataPtr = data;
     UpdateVirtualSize();
+    Refresh();
+}
+
+void PcbCanvas::ZoomToFit()
+{
+    if (!m_pcbDataPtr || m_pcbDataPtr->GetBoundingBox().IsEmpty()) return;
+
+    wxRect2DDouble bbox = m_pcbDataPtr->GetBoundingBox();
+    wxSize clientSize = GetClientSize();
+
+    // Add some padding
+    bbox.Inset(-bbox.m_width * 0.05, -bbox.m_height * 0.05);
+
+    if (bbox.m_width <= 0 || bbox.m_height <= 0 || clientSize.x <= 0 || clientSize.y <= 0) return;
+
+    const double pcb_to_pixels = 10.0;
+    double scaleX = clientSize.x / (bbox.m_width * pcb_to_pixels);
+    double scaleY = clientSize.y / (bbox.m_height * pcb_to_pixels);
+
+    m_scale = std::min(scaleX, scaleY);
+
+    // Center the view on the bounding box
+    wxPoint2DDouble bboxCenter(bbox.m_x + bbox.m_width / 2.0, bbox.m_y + bbox.m_height / 2.0);
+    wxPoint scrollTarget = wxPoint(bboxCenter.m_x * pcb_to_pixels * m_scale - clientSize.x / 2,
+                                   bboxCenter.m_y * pcb_to_pixels * m_scale - clientSize.y / 2);
+    Scroll(scrollTarget);
     Refresh();
 }
 
@@ -258,13 +356,68 @@ void PcbCanvas::UpdateVirtualSize()
 void PcbCanvas::OnMouseDown(wxMouseEvent& event)
 {
     SetFocus(); // Capture keyboard focus on click.
-    m_panStartPos = event.GetPosition();
-    CaptureMouse();
+    if (m_isZoomingArea)
+    {
+        m_zoomAreaStart = event.GetPosition();
+        m_zoomAreaRect.SetPosition(m_zoomAreaStart);
+        m_zoomAreaRect.SetSize(wxSize(0, 0));
+        CaptureMouse();
+    }
+    else
+    {
+        m_panStartPos = event.GetPosition();
+        CaptureMouse();
+    }
 }
 
 void PcbCanvas::OnMouseUp(wxMouseEvent& event)
 {
     if (HasCapture()) ReleaseMouse();
+
+    if (m_isZoomingArea)
+    {
+        // Manually normalize the rectangle to ensure width/height are positive.
+        // The Normalize() method can be problematic with some compiler setups.
+        wxRect screenRect = m_zoomAreaRect;
+        if (screenRect.width < 0) {
+            screenRect.x += screenRect.width;
+            screenRect.width = -screenRect.width;
+        }
+        if (screenRect.height < 0) {
+            screenRect.y += screenRect.height;
+            screenRect.height = -screenRect.height;
+        }
+
+        if (screenRect.width > 5 && screenRect.height > 5)
+        {
+            // Convert screen rect to logical rect (in mm * pcb_scale units)
+            wxPoint scroll = GetViewStart();
+            wxPoint2DDouble logicalTopLeft((screenRect.GetLeft() + scroll.x) / m_scale, (screenRect.GetTop() + scroll.y) / m_scale);
+            wxPoint2DDouble logicalBottomRight((screenRect.GetRight() + scroll.x) / m_scale, (screenRect.GetBottom() + scroll.y) / m_scale);
+            wxRect2DDouble logicalRect(logicalTopLeft.m_x, logicalTopLeft.m_y, logicalBottomRight.m_x - logicalTopLeft.m_x, logicalBottomRight.m_y - logicalTopLeft.m_y);
+
+            // Zoom to this logical rect
+            wxSize clientSize = GetClientSize();
+            double scaleX = clientSize.x / logicalRect.m_width;
+            double scaleY = clientSize.y / logicalRect.m_height;
+            m_scale = std::min(scaleX, scaleY) * 0.95; // 5% padding
+
+            wxPoint2DDouble rectCenter(logicalRect.m_x + logicalRect.m_width / 2.0, logicalRect.m_y + logicalRect.m_height / 2.0);
+            wxPoint scrollTarget = wxPoint(rectCenter.m_x * m_scale - clientSize.x / 2,
+                                           rectCenter.m_y * m_scale - clientSize.y / 2);
+            Scroll(scrollTarget);
+        }
+
+        m_isZoomingArea = false;
+        m_zoomAreaRect = wxRect();
+        SetCursor(wxCURSOR_CROSS);
+        Refresh();
+
+        // Notify the parent frame to untoggle the button
+        wxCommandEvent zoomCompleteEvent(EVT_ZOOM_AREA_COMPLETE, GetId());
+        zoomCompleteEvent.SetEventObject(this);
+        wxPostEvent(GetParent(), zoomCompleteEvent);
+    }
 }
 
 void PcbCanvas::OnMouseMove(wxMouseEvent& event)
@@ -276,6 +429,12 @@ void PcbCanvas::OnMouseMove(wxMouseEvent& event)
     if (event.Dragging() && event.LeftIsDown()) {
         wxPoint delta = event.GetPosition() - m_panStartPos;
         Scroll(GetViewStart().x - delta.x, GetViewStart().y - delta.y);
+    }
+
+    if (m_isZoomingArea && event.Dragging() && event.LeftIsDown())
+    {
+        m_zoomAreaRect.SetBottomRight(event.GetPosition());
+        Refresh();
     }
 
     // Update status bar with coordinates
@@ -292,6 +451,12 @@ void PcbCanvas::OnMouseWheel(wxMouseEvent& event)
 {
     double zoomFactor = 1.1;
     wxPoint mousePos = event.GetPosition();
+
+    // If we are in zoom-to-area mode, cancel it on wheel zoom
+    if (m_isZoomingArea) {
+        m_isZoomingArea = false;
+        SetCursor(wxCURSOR_CROSS);
+    }
 
     // The logical position on the virtual canvas that is under the mouse
     wxPoint logicalPos = CalcUnscrolledPosition(mousePos);

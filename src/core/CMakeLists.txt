@@ -31,6 +31,6 @@ target_include_directories(AutorouterCore PUBLIC
 # (like our GUI app) also gets the necessary wxWidgets include paths.
 # The KiCadParser is an internal implementation detail.
 target_link_libraries(AutorouterCore
-    PUBLIC wx::core wx::base
+    PUBLIC wx::core wx::base wx::adv
     PRIVATE KiCadParser
 )
