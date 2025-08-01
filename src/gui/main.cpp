@@ -197,7 +197,7 @@ MyFrame::MyFrame()
     m_toolBar->AddTool(wxID_ZOOM_OUT, "Zoom Out", wxArtProvider::GetBitmap(wxART_MINUS, wxART_TOOLBAR), "Zoom Out");
     m_toolBar->AddTool(wxID_ZOOM_FIT, "Zoom To Fit", wxArtProvider::GetBitmap(wxART_FULL_SCREEN, wxART_TOOLBAR), "Zoom To Fit");
     m_toolBar->AddSeparator();
-    m_toolBar->AddTool(ID_ZoomToArea, "Zoom To Area", wxArtProvider::GetBitmap(wxART_FIND, wxART_TOOLBAR), "Zoom To Area", wxITEM_TOGGLE);
+    m_toolBar->AddTool(ID_ZoomToArea, "Zoom To Area", wxArtProvider::GetBitmap(wxART_FIND, wxART_TOOLBAR), "Zoom To Area", wxITEM_CHECK);
     m_toolBar->Realize();
 
 
