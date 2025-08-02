@@ -1,6 +1,7 @@
 #include "catch2/catch.hpp"
 
 #include "../src/core/AutorouterCore.h"
+#include "../src/core/PcbData.h"
 #include <wx/app.h>
 #include <wx/filename.h>
 #include <wx/dir.h>
@@ -52,7 +53,7 @@ TEST_CASE("PCB File Loading and Routing Metrics", "[core][filesystem]")
         SECTION(testName.ToStdString())
         {
             AutorouterCore core;
-            REQUIRE(core.loadPcbFile(pcbFile));
+            REQUIRE(core.loadPcbFile(pcbFile.ToStdString()));
 
             const auto& allNets = core.getPcbData()->GetNets();
             if (allNets.empty()) {
