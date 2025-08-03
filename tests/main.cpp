@@ -1,3 +1,5 @@
+// This tells Catch2 that we will provide our own main() function.
+#define CATCH_CONFIG_RUNNER
 #include "catch2/catch.hpp"
 
 #include "../src/core/AutorouterCore.h"
@@ -13,24 +15,49 @@ class TestApp : public wxApp
 public:
     virtual bool OnInit()
     {
-        // Don't create any windows or run an event loop
-        return false;
+        // Don't create any windows or run an event loop.
+        // Return true to indicate successful initialization.
+        return true;
     }
 };
 
-IMPLEMENT_APP_NO_MAIN(TestApp);
+
+// This is the entry point for the test executable.
+// We need to initialize wxWidgets before running the tests.
+int main(int argc, char* argv[])
+{
+    // Create a wxWidgets application instance.
+    wxApp::SetInstance(new TestApp());
+
+    // wxEntryStart is a platform-specific function that initializes wxWidgets.
+    if (!wxEntryStart(argc, argv))
+    {
+        // Handle initialization failure
+        return 1;
+    }
+
+    // Run the Catch2 test suite.
+    int result = Catch::Session().run(argc, argv);
+
+    // Clean up wxWidgets resources.
+    wxEntryCleanup();
+
+    return result;
+}
 
 TEST_CASE("PCB File Loading and Routing Metrics", "[core][filesystem]")
 {
-    // Discover all .kicad_pcb files in the test directory.
-    // This assumes the test is run from the `tests` directory, which is
-    // configured in .vscode/settings.json.
+    // CTest runs executables from the build directory. We need to provide a
+    // relative path from the build directory to the source directory where
+    // the test files are located. For a typical CMake setup, this is two
+    // levels up to the project root, then into `tests/pcb_files`.
+    const wxString pcbFilesPath = "../../tests/pcb_files";
+
+    // Discover all .kicad_pcb files in the test directory, recursively.
     wxArrayString pcbFiles;
-    wxDir::GetAllFiles("pcb_files", &pcbFiles, "*.kicad_pcb", wxDIR_FILES);
+    wxDir::GetAllFiles(pcbFilesPath, &pcbFiles, "*.kicad_pcb", wxDIR_FILES | wxDIR_RECURSIVE);
 
     // This check is important. If it fails, it means the test runner's
-    // working directory is wrong or the pcb_files folder is empty.
-    INFO("Make sure the 'pcb_files' directory exists in the 'tests' folder and contains .kicad_pcb files.");
     REQUIRE(pcbFiles.GetCount() > 0);
 
     // This loop creates a dynamic section for each file found.
