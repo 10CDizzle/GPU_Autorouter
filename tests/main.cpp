@@ -8,6 +8,11 @@
 #include <wx/filename.h>
 #include <wx/dir.h>
 
+// This macro is defined by CMake in tests/CMakeLists.txt
+#ifndef PCB_FILES_PATH
+    #error "PCB_FILES_PATH is not defined. Check your CMake configuration."
+#endif
+
 // We need a dummy wxApp object for the test executable because wxWidgets
 // functions (like those used in AutorouterCore) expect one to exist.
 class TestApp : public wxApp
@@ -55,8 +60,14 @@ public:
         m_files.Add(filename);
         return wxDIR_CONTINUE;
     }
-    virtual wxDirTraverseResult OnDir(const wxString& WXUNUSED(dirname)) override
+    virtual wxDirTraverseResult OnDir(const wxString& dirname) override
     {
+        // To make the test suite robust, explicitly ignore version control directories.
+        wxFileName fn(dirname);
+        if (fn.GetFullName() == ".git" || fn.GetFullName() == ".svn")
+        {
+            return wxDIR_IGNORE;
+        }
         return wxDIR_CONTINUE;
     }
 private:
@@ -70,17 +81,30 @@ TEST_CASE("PCB File Loading and Routing Metrics", "[core][filesystem]")
     // relative path from the build directory to the source directory where
     // the test files are located. For a typical CMake setup, this is two
     // levels up to the project root, then into `tests/pcb_files`.
-    const wxString pcbFilesPath = "../../tests/pcb_files";
+    // The path to the test files is passed in by CMake as a compile definition
+    // to avoid issues with relative paths and working directories.
+    const wxString pcbFilesPath = wxString(PCB_FILES_PATH);
 
+    // Check if the directory exists before trying to traverse it. This helps debug path issues.
+    INFO("Searching for PCB files in: " << pcbFilesPath);
+    REQUIRE(wxDir::Exists(pcbFilesPath));
     // Discover all .kicad_pcb files in the test directory, recursively.
     wxArrayString pcbFiles;
     PcbFileTraverser traverser(pcbFiles);
 
     wxDir dir(pcbFilesPath);
-    dir.Traverse(traverser, "*.kicad_pcb", wxDIR_FILES | wxDIR_HIDDEN);
+    // flag is for newer wxWidgets versions and is not needed here.
+    dir.Traverse(traverser, "*.kicad_pcb", wxDIR_FILES | wxDIR_DIRS | wxDIR_HIDDEN);
 
     // This check is important. If it fails, it means the test runner's
     REQUIRE(pcbFiles.GetCount() > 0);
+    INFO("Found " << pcbFiles.GetCount() << " PCB files.");
+    INFO("PCB Files:");
+    for (const wxString& pcbFile : pcbFiles) {
+        INFO("- " << pcbFile);
+    }
+
+    
 
     // This loop creates a dynamic section for each file found.
     for (const wxString& pcbFile : pcbFiles)
