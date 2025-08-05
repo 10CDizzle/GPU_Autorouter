@@ -45,6 +45,25 @@ int main(int argc, char* argv[])
     return result;
 }
 
+// Helper class to recursively find files
+class PcbFileTraverser : public wxDirTraverser
+{
+public:
+    PcbFileTraverser(wxArrayString& files) : m_files(files) {}
+    virtual wxDirTraverseResult OnFile(const wxString& filename) override
+    {
+        m_files.Add(filename);
+        return wxDIR_CONTINUE;
+    }
+    virtual wxDirTraverseResult OnDir(const wxString& WXUNUSED(dirname)) override
+    {
+        return wxDIR_CONTINUE;
+    }
+private:
+    wxArrayString& m_files;
+};
+
+
 TEST_CASE("PCB File Loading and Routing Metrics", "[core][filesystem]")
 {
     // CTest runs executables from the build directory. We need to provide a
@@ -55,7 +74,10 @@ TEST_CASE("PCB File Loading and Routing Metrics", "[core][filesystem]")
 
     // Discover all .kicad_pcb files in the test directory, recursively.
     wxArrayString pcbFiles;
-    wxDir::GetAllFiles(pcbFilesPath, &pcbFiles, "*.kicad_pcb", wxDIR_FILES | wxDIR_RECURSIVE);
+    PcbFileTraverser traverser(pcbFiles);
+
+    wxDir dir(pcbFilesPath);
+    dir.Traverse(traverser, "*.kicad_pcb", wxDIR_FILES | wxDIR_HIDDEN);
 
     // This check is important. If it fails, it means the test runner's
     REQUIRE(pcbFiles.GetCount() > 0);

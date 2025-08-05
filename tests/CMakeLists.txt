@@ -5,6 +5,10 @@ project(PCBAutorouterTests)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Enable testing for this project
+enable_testing()
+include(CTest)
+
 # We need to find wxWidgets to link our test executable against it.
 # The parent CMakeLists.txt has already configured it via add_subdirectory,
 # so the link targets (wx::core, wx::base) are already available.
@@ -20,3 +24,6 @@ target_link_libraries(AutorouterTests PRIVATE
     wx::base
     Catch2::Catch2WithMain
 )
+
+# Add the test to CTest
+add_test(NAME AutorouterTests COMMAND AutorouterTests)
