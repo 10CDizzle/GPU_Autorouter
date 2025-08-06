@@ -74,17 +74,10 @@ private:
     wxArrayString& m_files;
 };
 
-
-TEST_CASE("PCB File Loading and Routing Metrics", "[core][filesystem]")
+// Helper function to discover all .kicad_pcb files
+wxArrayString discoverPcbFiles()
 {
-    // CTest runs executables from the build directory. We need to provide a
-    // relative path from the build directory to the source directory where
-    // the test files are located. For a typical CMake setup, this is two
-    // levels up to the project root, then into `tests/pcb_files`.
-    // The path to the test files is passed in by CMake as a compile definition
-    // to avoid issues with relative paths and working directories.
     const wxString pcbFilesPath = wxString(PCB_FILES_PATH);
-
     // Check if the directory exists before trying to traverse it. This helps debug path issues.
     INFO("Searching for PCB files in: " << pcbFilesPath);
     REQUIRE(wxDir::Exists(pcbFilesPath));
@@ -99,12 +92,16 @@ TEST_CASE("PCB File Loading and Routing Metrics", "[core][filesystem]")
     // This check is important. If it fails, it means the test runner's
     REQUIRE(pcbFiles.GetCount() > 0);
     INFO("Found " << pcbFiles.GetCount() << " PCB files.");
+    return pcbFiles;
+}
+
+TEST_CASE("PCB File Loading and Routing Metrics", "[core][filesystem]")
+{
+    const wxArrayString pcbFiles = discoverPcbFiles();
     INFO("PCB Files:");
     for (const wxString& pcbFile : pcbFiles) {
         INFO("- " << pcbFile);
     }
-
-    
 
     // This loop creates a dynamic section for each file found.
     for (const wxString& pcbFile : pcbFiles)
@@ -165,6 +162,67 @@ TEST_CASE("PCB File Loading and Routing Metrics", "[core][filesystem]")
 
             // 5. Log the results for manual inspection.
             INFO("Routed " << result.nets_routed << "/" << result.nets_total << " nets in " << result.time_ms << "ms. Total length: " << result.total_track_length << "mm.");
+        }
+    }
+}
+
+TEST_CASE("Per-Net A* Routing", "[core][routing]")
+{
+    const wxArrayString pcbFiles = discoverPcbFiles();
+
+    for (const wxString& pcbFile : pcbFiles)
+    {
+        wxFileName fn(pcbFile);
+        wxString boardTestName;
+        wxArrayString dirs = fn.GetDirs();
+
+        if (dirs.GetCount() > 1) {
+            boardTestName = dirs.Last() + wxT(" / ") + fn.GetFullName();
+        } else {
+            boardTestName = fn.GetFullName();
+        }
+
+        // Create a test section for the entire board
+        SECTION("Board: " + boardTestName.ToStdString())
+        {
+            AutorouterCore core;
+            REQUIRE(core.loadPcbFile(pcbFile.ToStdString()));
+
+            const auto& allNets = core.getPcbData()->GetNets();
+            if (allNets.empty()) {
+                SUCCEED("Skipping board with no nets.");
+                continue;
+            }
+
+            // Iterate through each net and create a routing test for it
+            for (size_t i = 0; i < allNets.size(); ++i)
+            {
+                const auto& net = allNets[i];
+                std::string netName = net.GetName().empty() ? "Unnamed Net" : net.GetName();
+                std::string netTestName = "Net " + std::to_string(i) + ": " + netName;
+
+                SECTION(netTestName)
+                {
+                    wxArrayInt netsToRoute;
+                    netsToRoute.Add(i);
+
+                    RoutingSettings settings; // Use default A* settings
+                    RoutingResult result = core.Route(settings, netsToRoute);
+
+                    // For a single net, total should be 1
+                    CHECK(result.nets_total == 1);
+                    // Routed can only be 0 or 1
+                    CHECK((result.nets_routed == 0 || result.nets_routed == 1));
+
+                    if (result.nets_routed == 1) {
+                        INFO("Successfully routed net " << i);
+                        CHECK(result.total_track_length > 0.0);
+                    } else {
+                        INFO("Failed to route net " << i);
+                        CHECK(result.total_track_length == 0.0);
+                    }
+                }
+            }
         }
     }
 }
