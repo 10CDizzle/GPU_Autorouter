@@ -95,6 +95,24 @@ wxArrayString discoverPcbFiles()
     return pcbFiles;
 }
 
+// Helper function to create a descriptive test name from a file path.
+// e.g., "c:/.../pcb_files/category/board.kicad_pcb" -> "category / board.kicad_pcb"
+wxString getTestNameForPcbFile(const wxString& pcbFile)
+{
+    wxFileName fn(pcbFile);
+    wxArrayString dirs = fn.GetDirs();
+
+    // Create a more descriptive name based on the folder structure.
+    if (dirs.GetCount() > 1) {
+        // It's in a category subdirectory, e.g., pcb_files/high_density_smd/
+        // We want a name like "high_density_smd / board.kicad_pcb"
+        return dirs.Last() + wxT(" / ") + fn.GetFullName();
+    }
+
+    // It's directly in pcb_files, e.g., pcb_files/simple.kicad_pcb
+    return fn.GetFullName();
+}
+
 TEST_CASE("PCB File Loading and Routing Metrics", "[core][filesystem]")
 {
     const wxArrayString pcbFiles = discoverPcbFiles();
@@ -106,20 +124,8 @@ TEST_CASE("PCB File Loading and Routing Metrics", "[core][filesystem]")
     // This loop creates a dynamic section for each file found.
     for (const wxString& pcbFile : pcbFiles)
     {
-        wxFileName fn(pcbFile);
-        wxString testName;
-        wxArrayString dirs = fn.GetDirs();
-
-        // Create a more descriptive name based on the folder structure.
-        if (dirs.GetCount() > 1) {
-            // It's in a category subdirectory, e.g., pcb_files/high_density_smd/
-            // We want a name like "high_density_smd / board.kicad_pcb"
-            testName = dirs.Last() + wxT(" / ") + fn.GetFullName();
-        } else {
-            // It's directly in pcb_files, e.g., pcb_files/simple.kicad_pcb
-            testName = fn.GetFullName();
-        }
-
+        // Use the helper function to get the test name and avoid duplicating code.
+        wxString testName = getTestNameForPcbFile(pcbFile);
         SECTION(testName.ToStdString())
         {
             AutorouterCore core;
@@ -172,16 +178,8 @@ TEST_CASE("Per-Net A* Routing", "[core][routing]")
 
     for (const wxString& pcbFile : pcbFiles)
     {
-        wxFileName fn(pcbFile);
-        wxString boardTestName;
-        wxArrayString dirs = fn.GetDirs();
-
-        if (dirs.GetCount() > 1) {
-            boardTestName = dirs.Last() + wxT(" / ") + fn.GetFullName();
-        } else {
-            boardTestName = fn.GetFullName();
-        }
-
+        // Use the helper function here as well.
+        wxString boardTestName = getTestNameForPcbFile(pcbFile);
         // Create a test section for the entire board
         SECTION("Board: " + boardTestName.ToStdString())
         {
