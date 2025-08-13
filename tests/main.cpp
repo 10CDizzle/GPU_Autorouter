@@ -196,7 +196,7 @@ TEST_CASE("Per-Net A* Routing", "[core][routing]")
             for (size_t i = 0; i < allNets.size(); ++i)
             {
                 const auto& net = allNets[i];
-                std::string netName = net.GetName().empty() ? "Unnamed Net" : net.GetName();
+                std::string netName = net.empty() ? "Unnamed Net" : net;
                 std::string netTestName = "Net " + std::to_string(i) + ": " + netName;
 
                 SECTION(netTestName)
